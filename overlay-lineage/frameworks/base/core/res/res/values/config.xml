@@ -8,7 +8,7 @@
          (com.android.axion.themepicker). Lineage's framework overlay points this
          at WallpaperPicker2 (com.android.wallpaper), which is not installed here,
          so WallpaperManager.getCropAndSetWallpaperIntent() pins the crop intent to
-         a missing package and throws, breaking "set as wallpaper" from the gallery
+         a missing package and throws -- breaking "set as wallpaper" from the gallery
          and any app using that API. This resource is not overlayable, so a runtime
          RRO cannot change it; it must be a build-time (DEVICE_PACKAGE_OVERLAYS) overlay. -->
     <string name="config_wallpaperCropperPackage" translatable="false">com.android.axion.themepicker</string>
