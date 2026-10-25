@@ -169,6 +169,10 @@
     <!-- Path to fast charging status file to detect whether an oem fast charger is active 
     <string name="config_oemFastChargerStatusPath2" translatable="false">"/sys/devices/platform/soc/soc:oplus,chg_intf/soc:oplus,chg_intf:oplus,wireless-charge/oplus_chg/wireless/fastchg_status"</string>-->
 
+    <!-- Package that handles CROP_AND_SET_WALLPAPER when the launcher does not:
+         AxThemePicker replaces WallpaperPicker2 (com.android.wallpaper) -->
+    <string name="config_wallpaperCropperPackage" translatable="false">com.android.axion.themepicker</string>
+
     <!-- If true, the display will be shifted around in ambient mode. -->
     <bool name="config_enableBurnInProtection">true</bool>
 
