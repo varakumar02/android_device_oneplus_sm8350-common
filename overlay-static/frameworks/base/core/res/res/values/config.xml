@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 The AxionOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <!-- Package that handles CROP_AND_SET_WALLPAPER when the launcher does not:
+         AxThemePicker replaces WallpaperPicker2 (com.android.wallpaper) -->
+    <string name="config_wallpaperCropperPackage" translatable="false">com.android.axion.themepicker</string>
+</resources>
