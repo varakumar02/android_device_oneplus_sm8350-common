@@ -31,4 +31,8 @@
          Note: this is conditional on the device supporting dual concurrent STAs. -->
     <bool name="config_wifiMultiStaRestrictedConcurrencyEnabled">true</bool>
 
+    <!-- ACS for softap leaves out DFS channels: a DFS channel needs a radar check (CAC) before
+         the AP starts, 60 s or more -->
+    <bool name="config_wifiSoftapAcsIncludeDfs">false</bool>
+
 </resources>
