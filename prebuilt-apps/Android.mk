@@ -27,7 +27,7 @@ include $(BUILD_PREBUILT)
 endif
 
 # KernelSU-Next manager (spoofed). Its version tracks the kernel's
-# drivers/kernelsu/Kbuild KSU_GIT_TAG.
+# drivers/staging/ksu-next/Kbuild KSU_GIT_TAG.
 ifneq ($(wildcard $(LOCAL_PATH)/KSUNManager.apk),)
 include $(CLEAR_VARS)
 LOCAL_MODULE := KSUNManagerPreinstall
