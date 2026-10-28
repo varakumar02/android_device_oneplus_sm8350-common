@@ -126,8 +126,9 @@ BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE := erofs
 BOARD_ONEPLUS_DYNAMIC_PARTITIONS_PARTITION_LIST := odm product system system_ext vendor vendor_dlkm
 # Native Virtual A/B w/ compression: super (11190403072) holds one slot's
 # partitions plus the OTA COW snapshot, so this group was half-super. Raised
-# to 6.5 GiB to fit the OplusCamera blobs; still leaves ~3.9 GiB in super for COW.
-BOARD_ONEPLUS_DYNAMIC_PARTITIONS_SIZE ?= 6979321856
+# to 8 GiB so vanilla builds fit too (they carry ~1.4 GiB of reserved GApps
+# space); still leaves ~2.6 GiB in super for COW, the rest goes to /data.
+BOARD_ONEPLUS_DYNAMIC_PARTITIONS_SIZE ?= 8589934592
 BOARD_SUPER_PARTITION_GROUPS := oneplus_dynamic_partitions
 BOARD_SUPER_PARTITION_SIZE ?= 11190403072
 BOARD_FLASH_BLOCK_SIZE := 262144 # (BOARD_KERNEL_PAGESIZE * 64)
