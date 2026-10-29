@@ -1,0 +1,30 @@
+diff --git a/services/permission/java/com/android/server/permission/access/permission/AppIdPermissionPolicy.kt b/services/permission/java/com/android/server/permission/access/permission/AppIdPermissionPolicy.kt
+index e61cb9d..38acc41 100644
+--- a/services/permission/java/com/android/server/permission/access/permission/AppIdPermissionPolicy.kt
++++ b/services/permission/java/com/android/server/permission/access/permission/AppIdPermissionPolicy.kt
+@@ -1007,6 +1007,11 @@ class AppIdPermissionPolicy : SchemePolicy() {
+             return
+         }
+         if (permission.isNormal) {
++            if (permissionName in AD_ID_PERMISSIONS) {
++                // Never granted, so Play services and AdServices hand every app a zeroed ID.
++                setPermissionFlags(appId, userId, permissionName, PermissionFlags.INSTALL_REVOKED)
++                return
++            }
+             var newFlags: Int
+             val wasInstallGranted = oldFlags.hasBits(PermissionFlags.INSTALL_GRANTED)
+             val wasInstallRevoked = oldFlags.hasBits(PermissionFlags.INSTALL_REVOKED)
+@@ -1984,6 +1989,13 @@ class AppIdPermissionPolicy : SchemePolicy() {
+ 
+         private const val PLATFORM_PACKAGE_NAME = "android"
+ 
++        // Advertising ID permissions, revoked from every app.
++        private val AD_ID_PERMISSIONS =
++            indexedSetOf(
++                "com.google.android.gms.permission.AD_ID",
++                "android.permission.ACCESS_ADSERVICES_AD_ID",
++            )
++
+         // A set of permissions that we don't want to revoke when they are no longer implicit.
+         private val NO_IMPLICIT_FLAG_PERMISSIONS =
+             indexedSetOf(
