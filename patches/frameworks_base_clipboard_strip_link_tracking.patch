@@ -1,0 +1,189 @@
+diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
+index c318bd7..469840f 100644
+--- a/services/core/java/com/android/server/clipboard/ClipboardService.java
++++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
+@@ -607,6 +607,7 @@ public class ClipboardService extends SystemService {
+                 return;
+             }
+             checkDataOwner(clip, intendingUid);
++            clip = stripLinkTracking(clip, intendingUserId);
+             synchronized (mLock) {
+                 scheduleAutoClear(userId, intendingUid, intendingDeviceId);
+                 setPrimaryClipInternalLocked(clip, intendingUid, intendingDeviceId, sourcePackage);
+@@ -1248,6 +1249,47 @@ public class ClipboardService extends SystemService {
+         }
+     }
+ 
++    /**
++     * Removes tracking parameters from links in the clip's text, html text and http(s) uri,
++     * unless the user turned it off. Items without a tracked link are left untouched.
++     */
++    private ClipData stripLinkTracking(ClipData clip, @UserIdInt int userId) {
++        final long callingId = Binder.clearCallingIdentity();
++        try {
++            if (Settings.Secure.getIntForUser(getContext().getContentResolver(),
++                    LinkTrackingStripper.SETTING, 1, userId) == 0) {
++                return clip;
++            }
++        } finally {
++            Binder.restoreCallingIdentity(callingId);
++        }
++        for (int i = 0; i < clip.getItemCount(); i++) {
++            final ClipData.Item item = clip.getItemAt(i);
++            if (item.getIntentSender() != null) continue;
++            final CharSequence text = item.getText();
++            final String html = item.getHtmlText();
++            final Uri uri = item.getUri();
++            final String newText = text == null ? null
++                    : LinkTrackingStripper.strip(text.toString());
++            final String newHtml = LinkTrackingStripper.strip(html);
++            Uri newUri = uri;
++            if (uri != null && ("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
++                final String s = uri.toString();
++                final String clean = LinkTrackingStripper.stripUrl(s);
++                if (clean != s) newUri = Uri.parse(clean);
++            }
++            final boolean textChanged = text != null && !newText.contentEquals(text);
++            if (!textChanged && newHtml == html && newUri == uri) continue;
++            clip.setItemAt(i, new ClipData.Item.Builder()
++                    .setText(textChanged ? newText : text)
++                    .setHtmlText(newHtml)
++                    .setIntent(item.getIntent())
++                    .setUri(newUri)
++                    .build());
++        }
++        return clip;
++    }
++
+     private void checkDataOwner(ClipData data, int uid) {
+         final int N = data.getItemCount();
+         for (int i=0; i<N; i++) {
+diff --git a/services/core/java/com/android/server/clipboard/LinkTrackingStripper.java b/services/core/java/com/android/server/clipboard/LinkTrackingStripper.java
+new file mode 100644
+index 0000000..e5b2d25
+--- /dev/null
++++ b/services/core/java/com/android/server/clipboard/LinkTrackingStripper.java
+@@ -0,0 +1,123 @@
++/*
++ * Copyright (C) 2026 AxionOS
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.server.clipboard;
++
++import java.util.Locale;
++import java.util.Map;
++import java.util.Set;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
++
++/**
++ * Removes tracking query parameters (utm_*, fbclid, gclid, ...) from http(s) links in copied
++ * text. Only the query is touched; everything else in the text, including the order and exact
++ * encoding of the parameters that stay, is kept as it was.
++ */
++final class LinkTrackingStripper {
++    /** Settings.Secure key, 1 (default) strips, 0 leaves copied links alone. */
++    static final String SETTING = "aox_strip_link_tracking";
++
++    private static final Pattern URL = Pattern.compile("(?i)\\bhttps?://[^\\s<>\"'`]+");
++    // Characters that usually end a sentence around a link rather than belong to it.
++    private static final String TRAILING = ".,;:!?)]}'\"";
++
++    private static final Set<String> GLOBAL = Set.of(
++            "fbclid", "gclid", "gclsrc", "dclid", "gbraid", "wbraid", "msclkid", "yclid",
++            "twclid", "ttclid", "li_fat_id", "mc_cid", "mc_eid", "igshid", "igsh", "mibextid",
++            "_hsenc", "_hsmi", "__hssc", "__hstc", "__hsfp", "hsctatracking", "mkt_tok",
++            "oly_anon_id", "oly_enc_id", "rb_clickid", "s_cid", "vero_conv", "vero_id",
++            "wickedid", "srsltid", "_ga", "_gl", "epik", "ref_src", "ref_url", "spm",
++            "scm", "share_from", "sc_cid", "cmpid", "itm_source", "itm_medium",
++            "itm_campaign", "itm_content");
++
++    // Parameters that are tracking only on these sites and can mean something else elsewhere.
++    private static final Map<String, Set<String>> PER_HOST = Map.of(
++            "youtube.com", Set.of("si", "feature", "pp"),
++            "youtu.be", Set.of("si", "feature"),
++            "spotify.com", Set.of("si", "context", "nd"),
++            "x.com", Set.of("s", "t"),
++            "twitter.com", Set.of("s", "t"),
++            "reddit.com", Set.of("share_id", "rdt"),
++            "tiktok.com", Set.of("_r", "_t", "is_from_webapp", "sender_device", "is_copy_url",
++                    "web_id", "share_app_id", "share_link_id"),
++            "linkedin.com", Set.of("trk", "trackingid", "lipi", "rcm"),
++            "amazon.in", Set.of("tag", "linkcode", "ref_", "pd_rd_r", "pd_rd_w", "pd_rd_wg",
++                    "pf_rd_p", "pf_rd_r", "content-id", "psc"),
++            "amazon.com", Set.of("tag", "linkcode", "ref_", "pd_rd_r", "pd_rd_w", "pd_rd_wg",
++                    "pf_rd_p", "pf_rd_r", "content-id", "psc"));
++
++    private LinkTrackingStripper() {}
++
++    /** Returns {@code text} with tracking parameters removed, or {@code text} itself if none. */
++    static String strip(String text) {
++        if (text == null || text.indexOf("://") < 0) return text;
++        final Matcher m = URL.matcher(text);
++        StringBuilder out = null;
++        int last = 0;
++        while (m.find()) {
++            String url = m.group();
++            int end = url.length();
++            while (end > 0 && TRAILING.indexOf(url.charAt(end - 1)) >= 0) end--;
++            final String clean = stripUrl(url.substring(0, end));
++            if (clean.length() == end) continue;
++            if (out == null) out = new StringBuilder(text.length());
++            out.append(text, last, m.start()).append(clean).append(url, end, url.length());
++            last = m.end();
++        }
++        if (out == null) return text;
++        return out.append(text, last, text.length()).toString();
++    }
++
++    /** Strips one URL; returns it unchanged (same instance) when nothing is removed. */
++    static String stripUrl(String url) {
++        final int q = url.indexOf('?');
++        if (q < 0) return url;
++        int hash = url.indexOf('#', q);
++        if (hash < 0) hash = url.length();
++        final Set<String> hostKeys = hostKeys(url.substring(0, q));
++        final StringBuilder query = new StringBuilder();
++        boolean removed = false;
++        for (String param : url.substring(q + 1, hash).split("&")) {
++            if (param.isEmpty()) continue;
++            final int eq = param.indexOf('=');
++            final String key = (eq < 0 ? param : param.substring(0, eq)).toLowerCase(Locale.ROOT);
++            if (key.startsWith("utm_") || GLOBAL.contains(key)
++                    || (hostKeys != null && hostKeys.contains(key))) {
++                removed = true;
++                continue;
++            }
++            query.append(query.length() == 0 ? "" : "&").append(param);
++        }
++        if (!removed) return url;
++        return url.substring(0, q) + (query.length() == 0 ? "" : "?" + query)
++                + url.substring(hash);
++    }
++
++    private static Set<String> hostKeys(String beforeQuery) {
++        final int start = beforeQuery.indexOf("://") + 3;
++        int end = start;
++        while (end < beforeQuery.length() && "/:".indexOf(beforeQuery.charAt(end)) < 0) end++;
++        String host = beforeQuery.substring(start, end).toLowerCase(Locale.ROOT);
++        final int at = host.lastIndexOf('@');
++        if (at >= 0) host = host.substring(at + 1);
++        for (Map.Entry<String, Set<String>> e : PER_HOST.entrySet()) {
++            final String h = e.getKey();
++            if (host.equals(h) || host.endsWith("." + h)) return e.getValue();
++        }
++        return null;
++    }
++}
