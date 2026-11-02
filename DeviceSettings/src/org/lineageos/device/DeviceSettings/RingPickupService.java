@@ -33,7 +33,7 @@ public class RingPickupService extends Service {
     // Tilt from the orientation the phone rang in. The pick-up gesture sensor's own
     // threshold is fixed in sensor firmware and needs a full lift; this catches smaller
     // movements. Tilt, not shake, so the ringer's vibration on a table can't trigger it.
-    private static final float TILT_DEGREES = 20f;
+    private static final float TILT_DEGREES = 50f;
     private static final float GRAVITY_FILTER = 0.8f;
 
     private SensorManager mSensorManager;
