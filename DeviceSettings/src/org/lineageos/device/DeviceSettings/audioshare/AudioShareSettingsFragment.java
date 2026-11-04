@@ -59,7 +59,8 @@ public class AudioShareSettingsFragment extends PreferenceFragmentCompat
     private static final String KEY_A2DP_HW_OFFLOAD = "bluetooth_a2dp_hw_offload";
     private static final String KEY_HARDWARE_ENGINE_INFO = "hardware_engine_info";
     private static final String KEY_SHARING_CODEC = "audio_share_codec";
-    private static final String KEY_SYNC_DELAY = "audio_share_sync_delay";
+    private static final String KEY_ADJ_MAIN = "audio_share_adj_main";
+    private static final String KEY_ADJ_SECOND = "audio_share_adj_second";
     private static final String KEY_LIPSYNC = "audio_share_lipsync";
     private static final String KEY_LIPSYNC_MODE = "audio_share_lipsync_mode";
     // off, auto or manual; read by the Bluetooth stack (btif_a2dp_sharing_update_hold)
@@ -67,7 +68,8 @@ public class AudioShareSettingsFragment extends PreferenceFragmentCompat
     // The hold the stack applies now, in ms (auto mode's result)
     private static final String PROP_HOLD_MS = "bluetooth.a2dp_sharing.hold_ms";
     // Read per packet by the Bluetooth stack (bta_av_sharing_hold)
-    private static final String PROP_SYNC_DELAY = "persist.bluetooth.a2dp_sharing.delay_ms";
+    // + headset address without colons: how much later than its delay report a headset plays (ms)
+    private static final String PROP_ADJ_PREFIX = "persist.bluetooth.a2dp_sharing.adj.";
     // Read by OplusA2dpSharingService when sharing starts
     private static final String PROP_SHARING_CODEC = "persist.bluetooth.a2dp_sharing.codec";
     // Earlier versions switched hardware offload off for sharing and recorded it here, so turning
@@ -82,7 +84,9 @@ public class AudioShareSettingsFragment extends PreferenceFragmentCompat
     private SwitchPreferenceCompat mHwOffloadSwitch;
     private Preference mHardwareEngineInfoPref;
     private ListPreference mSharingCodecPref;
-    private AudioVolumePreference mSyncDelayPref;
+    // "<headset> plays late by": per-headset lip sync adjustment of the main and second headset
+    private AudioVolumePreference mAdjMainPref;
+    private AudioVolumePreference mAdjSecondPref;
     private volatile boolean mIsOffloadSwitching = false;
     private Preference mPrimaryDeviceInfo;
     // Live codec lines shown under each headset
@@ -282,12 +286,13 @@ public class AudioShareSettingsFragment extends PreferenceFragmentCompat
         mSeparateAppSoundPref = findPreference(KEY_SEPARATE_APP_SOUND);
         mHwOffloadSwitch = findPreference(KEY_A2DP_HW_OFFLOAD);
         mHardwareEngineInfoPref = findPreference(KEY_HARDWARE_ENGINE_INFO);
-        mSyncDelayPref = findPreference(KEY_SYNC_DELAY);
-        if (mSyncDelayPref != null) {
-            // 0-300 ms, the second headset is delayed by it (manual lip sync)
-            mSyncDelayPref.setRange(300, "0 ms", " ms", R.drawable.ic_dock_link, R.drawable.ic_dock_link);
-            mSyncDelayPref.setValue(android.os.SystemProperties.getInt(PROP_SYNC_DELAY, 0));
-            mSyncDelayPref.setOnPreferenceChangeListener(this);
+        mAdjMainPref = findPreference(KEY_ADJ_MAIN);
+        mAdjSecondPref = findPreference(KEY_ADJ_SECOND);
+        for (AudioVolumePreference pref : new AudioVolumePreference[] {mAdjMainPref, mAdjSecondPref}) {
+            if (pref != null) {
+                pref.setRange(300, "0 ms", " ms", R.drawable.ic_dock_link, R.drawable.ic_dock_link);
+                pref.setOnPreferenceChangeListener(this);
+            }
         }
         mLipsyncSwitch = findPreference(KEY_LIPSYNC);
         mLipsyncModePref = findPreference(KEY_LIPSYNC_MODE);
@@ -637,11 +642,8 @@ public class AudioShareSettingsFragment extends PreferenceFragmentCompat
             mSyncVolumesSwitch.setEnabled(masterEnabled && btOk && mIsSharingActive);
         }
         boolean lipsyncOn = mLipsyncSwitch != null && mLipsyncSwitch.isChecked();
-        boolean manual = mLipsyncModePref != null && "manual".equals(mLipsyncModePref.getValue());
-        if (mSyncDelayPref != null) {
-            mSyncDelayPref.setVisible(manual);
-            mSyncDelayPref.setEnabled(masterEnabled && btOk && lipsyncOn);
-        }
+        refreshAdjustPref(mAdjMainPref, mPrimaryDevice, lipsyncOn, masterEnabled && btOk);
+        refreshAdjustPref(mAdjSecondPref, mSecondaryDevice, lipsyncOn, masterEnabled && btOk);
         refreshLipsyncSummary();
         if (mSeparateAppSoundPref != null) {
             mSeparateAppSoundPref.setEnabled(masterEnabled && btOk);
@@ -726,13 +728,16 @@ public class AudioShareSettingsFragment extends PreferenceFragmentCompat
             // The stack picks the new hold up on its next encoder tick
             mHandler.postDelayed(this::refreshLipsyncSummary, 500);
             return false;
-        } else if (preference == mSyncDelayPref) {
+        } else if (preference == mAdjMainPref || preference == mAdjSecondPref) {
+            BluetoothDevice device = preference == mAdjMainPref ? mPrimaryDevice : mSecondaryDevice;
+            if (device == null) return false;
             try {
-                android.os.SystemProperties.set(PROP_SYNC_DELAY, String.valueOf((Integer) newValue));
+                android.os.SystemProperties.set(adjustProp(device), String.valueOf((Integer) newValue));
             } catch (Throwable t) {
-                Log.e(TAG, "Failed to set " + PROP_SYNC_DELAY, t);
+                Log.e(TAG, "Failed to set " + adjustProp(device), t);
                 return false;
             }
+            mHandler.postDelayed(this::refreshLipsyncSummary, 500);
             return true;
         } else if (preference == mSharingCodecPref) {
             String codec = (String) newValue;
@@ -1171,21 +1176,36 @@ public class AudioShareSettingsFragment extends PreferenceFragmentCompat
         return codec != null ? text + "\n" + codec : text;
     }
 
-    // Lip sync mode line: in auto, the hold the Bluetooth stack derived from the delay reports
+    private static String adjustProp(BluetoothDevice device) {
+        return PROP_ADJ_PREFIX + device.getAddress().replace(":", "").toUpperCase(Locale.ROOT);
+    }
+
+    // The adjustment slider of one headset: titled with its name, its stored value, hidden without
+    // a headset or with lip sync off
+    private void refreshAdjustPref(AudioVolumePreference pref, BluetoothDevice device,
+            boolean lipsyncOn, boolean enabled) {
+        if (pref == null) return;
+        pref.setVisible(lipsyncOn && device != null);
+        if (device == null) return;
+        pref.setTitle(getString(R.string.audio_share_adj_title, getDeviceDisplayName(device)));
+        pref.setValue(android.os.SystemProperties.getInt(adjustProp(device), 0));
+        pref.setEnabled(enabled);
+    }
+
+    // Lip sync mode line: what the mode uses, and while sharing the hold the stack applies now
     private void refreshLipsyncSummary() {
         if (mLipsyncModePref == null || !isAdded()) return;
         String label = String.valueOf(mLipsyncModePref.getEntry());
-        if (!"auto".equals(mLipsyncModePref.getValue())) {
-            mLipsyncModePref.setSummary(label);
-            return;
-        }
+        boolean auto = "auto".equals(mLipsyncModePref.getValue());
         String detail;
         if (!mIsSharingActive) {
-            detail = getString(R.string.audio_share_lipsync_auto_idle);
+            detail = getString(auto ? R.string.audio_share_lipsync_auto_idle
+                    : R.string.audio_share_lipsync_manual_idle);
         } else {
             int hold = android.os.SystemProperties.getInt(PROP_HOLD_MS, 0);
-            detail = hold > 0 ? getString(R.string.audio_share_lipsync_auto_hold, hold)
-                    : getString(R.string.audio_share_lipsync_auto_none);
+            detail = hold > 0 ? getString(R.string.audio_share_lipsync_hold_second, hold)
+                    : hold < 0 ? getString(R.string.audio_share_lipsync_hold_main, -hold)
+                    : getString(R.string.audio_share_lipsync_in_step);
         }
         mLipsyncModePref.setSummary(label + "\n" + detail);
     }

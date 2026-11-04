@@ -203,7 +203,6 @@
     <string name="audio_share_codec_will_use">Will share %1$s</string>
     <string name="audio_share_codec_in_use">Sharing %1$s now</string>
     <string name="audio_share_codec_pick_devices">Pick both headsets to see the codec</string>
-    <string name="audio_share_sync_delay_title">Delay for the second headset</string>
     <string name="audio_share_hardware_category">Advanced</string>
     <string name="audio_share_idle_status">Connect two headsets to share</string>
     <string name="audio_share_must_enable_force_sbc">Turn on Audio Sharing first</string>
@@ -253,9 +252,12 @@
     <string name="audio_share_lipsync_title">Lip sync</string>
     <string name="audio_share_lipsync_summary">Delay the earlier headset so both play together</string>
     <string name="audio_share_lipsync_mode_title">Mode</string>
-    <string name="audio_share_lipsync_auto_idle">Measured from the headsets\' reported delays once sharing starts</string>
-    <string name="audio_share_lipsync_auto_hold">Second headset delayed by %1$d ms</string>
-    <string name="audio_share_lipsync_auto_none">No delay needed (or the second headset is the later one: swap headsets)</string>
+    <string name="audio_share_lipsync_auto_idle">Reported headset delays plus the adjustments below</string>
+    <string name="audio_share_lipsync_manual_idle">Only the adjustments below</string>
+    <string name="audio_share_lipsync_hold_second">Second headset delayed by %1$d ms</string>
+    <string name="audio_share_lipsync_hold_main">Main headset delayed by %1$d ms</string>
+    <string name="audio_share_lipsync_in_step">No delay needed</string>
+    <string name="audio_share_adj_title">%1$s plays late by</string>
     <string name="audio_share_category_title">Bluetooth</string>
     <string name="aptx_adaptive_low_latency_title">aptX Adaptive low latency</string>
     <string name="aptx_adaptive_low_latency_summary">Lower audio delay for games and video at a lower bitrate. Available while an aptX Adaptive headset is playing</string>

@@ -97,10 +97,15 @@
             android:defaultValue="auto"
             android:persistent="false" />
 
+        <!-- Per-headset adjustment, titled "<headset> plays late by" at runtime -->
         <org.lineageos.device.DeviceSettings.audioshare.AudioVolumePreference
-            android:key="audio_share_sync_delay"
+            android:key="audio_share_adj_main"
             android:dependency="audio_share_lipsync"
-            android:title="@string/audio_share_sync_delay_title"
+            android:persistent="false" />
+
+        <org.lineageos.device.DeviceSettings.audioshare.AudioVolumePreference
+            android:key="audio_share_adj_second"
+            android:dependency="audio_share_lipsync"
             android:persistent="false" />
 
     </PreferenceCategory>
