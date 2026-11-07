@@ -228,3 +228,11 @@ vendor.usb.use_gadget_hal=1
 
 # WiFi
 wifi.aware.interface=wifi-aware0
+
+# Persistent data block (OEM unlock)
+# ro.frp.pst lets PersistentDataBlockService open the FRP partition so
+# OemLockManager (no vendor oemlock HAL on this device) can store the
+# OEM-unlock-allowed bit. This is the data-block partition only; the Google
+# anti-theft reset lockout is a separate GMS/SetupWizard behaviour and is not
+# enabled by wiring the partition.
+ro.frp.pst=/dev/block/bootdevice/by-name/frp
