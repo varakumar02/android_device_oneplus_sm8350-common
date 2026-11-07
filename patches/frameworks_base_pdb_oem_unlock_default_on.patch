@@ -1,0 +1,15 @@
+--- a/services/core/java/com/android/server/pdb/PersistentDataBlockService.java
++++ b/services/core/java/com/android/server/pdb/PersistentDataBlockService.java
+@@ -445,7 +445,11 @@ public class PersistentDataBlockService extends SystemService {
+             byte[] digest = computeDigestLocked(storedDigest);
+             if (digest == null || !Arrays.equals(storedDigest, digest)) {
+                 Slog.i(TAG, "Formatting FRP partition...");
+-                formatPartitionLocked(false);
++                // Default OEM unlock to allowed when the FRP partition is blank or
++                // invalid (first boot / after a wipe). There is no build-time seed
++                // for the OEM-unlock bit, so this fresh-format default is the only
++                // place it can be set; the user can still turn it off in Settings.
++                formatPartitionLocked(true);
+                 return false;
+             }
+         }
