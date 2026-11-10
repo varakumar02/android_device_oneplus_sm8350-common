@@ -12,7 +12,7 @@ ro.bpf.kver_override=5.10.239
 ro.opa.device_model_id=ga-oplus-skill-os121-211011
 
 # OTA
-lineage.updater.uri=https://raw.githubusercontent.com/varakumar02/scripts/aox-lock/OTA/{variant}/{device}.json
+lineage.updater.uri=https://raw.githubusercontent.com/varakumar02/scripts/aox/OTA/{variant}/{device}.json
 
 # Wallpaper
 ro.config.wallpaper=/product/media/wallpaper/default_wallpaper.jpg
