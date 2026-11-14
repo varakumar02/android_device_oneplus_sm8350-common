@@ -177,12 +177,7 @@ echo 0 > /proc/sys/kernel/sched_boost
 # AxKernelManager's boot-time restore, silently discarding any user-set value.
 echo 20000 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/down_rate_limit_us
 echo 500 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/up_rate_limit_us
-if [ $rev == "1.0" ]; then
-	echo 1190400 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/hispeed_freq
-else
-	echo 1209600 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/hispeed_freq
-fi
-echo 1 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/pl
+echo 0 > /sys/devices/system/cpu/cpufreq/policy0/schedutil/pl
 
 # configure input boost settings
 if [ $rev == "1.0" ]; then
@@ -194,26 +189,15 @@ echo 120 > /sys/devices/system/cpu/cpu_boost/input_boost_ms
 
 # configure governor settings for gold cluster
 # NOTE: scaling_governor is owned by AxKernelManager (see silver cluster note
-# above). schedutil/pl is owned by libperfmgr (powerhint.json Node #3,
-# ResetOnInit, default value 1 -- matches what this script used to write).
+# above).
 echo 10000 > /sys/devices/system/cpu/cpufreq/policy4/schedutil/down_rate_limit_us
 echo 500 > /sys/devices/system/cpu/cpufreq/policy4/schedutil/up_rate_limit_us
-if [ $rev == "1.0" ]; then
-	echo 1497600 > /sys/devices/system/cpu/cpufreq/policy4/schedutil/hispeed_freq
-else
-	echo 1555200 > /sys/devices/system/cpu/cpufreq/policy4/schedutil/hispeed_freq
-fi
 
 # configure governor settings for gold+ cluster
 # NOTE: scaling_governor is owned by AxKernelManager (see silver cluster note above).
 echo 5000 > /sys/devices/system/cpu/cpufreq/policy7/schedutil/down_rate_limit_us
 echo 500 > /sys/devices/system/cpu/cpufreq/policy7/schedutil/up_rate_limit_us
-if [ $rev == "1.0" ]; then
-	echo 1536000 > /sys/devices/system/cpu/cpufreq/policy7/schedutil/hispeed_freq
-else
-	echo 1670400 > /sys/devices/system/cpu/cpufreq/policy7/schedutil/hispeed_freq
-fi
-echo 1 > /sys/devices/system/cpu/cpufreq/policy7/schedutil/pl
+echo 0 > /sys/devices/system/cpu/cpufreq/policy7/schedutil/pl
 
 # configure bus-dcvs
 for device in /sys/devices/platform/soc
