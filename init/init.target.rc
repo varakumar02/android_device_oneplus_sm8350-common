@@ -30,12 +30,12 @@
 import /vendor/etc/init/hw/init.qti.kernel.rc
 
 on early-init
+    exec u:r:vendor_modprobe:s0 -- /vendor/bin/vendor_modprobe.sh
     write /proc/sys/kernel/sched_boost 1
     wait /sys/devices/soc0/soc_id
 
     # Start audio adsp rpc daemon at early init stage
     start vendor.audioadsprpcd_audiopd
-    # Boot without modules
     setprop vendor.all.modules.ready 1
 
 on init
