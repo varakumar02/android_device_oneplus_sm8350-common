@@ -52,8 +52,17 @@ blob_fixups: blob_fixups_user_type = {
         .sig_replace('07 00 00 14 08 35 8C 52 7F 02 08 6B A0 00 00 54 08 A6 8E 52 7F 02 08 6B 40 00 00 54', '07 00 00 14 08 F9 95 52 7F 02 08 6B A1 00 00 54 1F 20 03 D5 1F 20 03 D5 1F 20 03 D5')
         .sig_replace('08 0C 41 B9 09 17 91 52', '08 0C 41 B9 09 C9 9D 52')
         .sig_replace('9B BB A3 72 3A 17 91 52', '9B BB A3 72 3A C9 9D 52'),
-    ('odm/lib64/mediadrm/libwvdrmengine.so', 'odm/lib64/libwvhidl.so'): blob_fixup()
+    'odm/lib64/mediadrm/libwvdrmengine.so': blob_fixup()
         .add_needed('libcrypto_shim.so'),
+    'odm/lib64/libwvhidl.so': blob_fixup()
+        .add_needed('libcrypto_shim.so')
+        # wvcdm::CryptoSession::GetSystemId(): report a fixed Widevine systemId
+        # (30771) instead of the device's own (546399097). Replaces
+        # 'ldr w8, [x20, #0x50]' with 'movz w8, #0x7833' at the return site;
+        # the following 'mov w0, #1; str w8, [x19]' make the 12-byte signature
+        # unique. Netflix blocklists this device's real systemId and refuses to
+        # play; the spoof only changes the reported id, not provisioning or keys.
+        .sig_replace('88 52 40 B9 20 00 80 52 68 02 00 B9', '68 06 8F 52 20 00 80 52 68 02 00 B9'),
     'product/app/PowerOffAlarm/PowerOffAlarm.apk': blob_fixup()
         .apktool_patch('blob-patches/PowerOffAlarm.patch'),
     'product/etc/sysconfig/com.android.hotwordenrollment.common.util.xml': blob_fixup()
