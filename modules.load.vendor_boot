@@ -11,6 +11,7 @@ rpmh-regulator.ko
 bwmon.ko
 qcom-cpufreq-hw.ko
 sched-walt.ko
+qcom_lpm.ko
 thermal_pause.ko
 cpu_hotplug.ko
 cfg80211.ko
