@@ -1,0 +1,72 @@
+diff --git a/install/include/private/setup_commands.h b/install/include/private/setup_commands.h
+index dcff761..60f9f34 100644
+--- a/install/include/private/setup_commands.h
++++ b/install/include/private/setup_commands.h
+@@ -34,6 +34,7 @@ bool SetUpNonAbUpdateCommands(const std::string& package, ZipArchiveHandle zip,
+ // |zip| located at |package|. Stores the command line that should be called into |cmd|. The
+ // |status_fd| is the file descriptor the child process should use to report back the progress of
+ // the update. Note that since this applies to the sideloading flow only, it takes one less
+-// parameter |retry_count| than the non-A/B version.
++// parameter |retry_count| than the non-A/B version. |spl_downgrade| adds SPL_DOWNGRADE=1 to the
++// payload properties handed to update_engine, for an SPL downgrade the user approved.
+ bool SetUpAbUpdateCommands(const std::string& package, ZipArchiveHandle zip, int status_fd,
+-                           std::vector<std::string>* cmd);
++                           std::vector<std::string>* cmd, bool spl_downgrade = false);
+diff --git a/install/install.cpp b/install/install.cpp
+index 07cadbc..3845fc3 100644
+--- a/install/install.cpp
++++ b/install/install.cpp
+@@ -298,15 +298,21 @@ static std::string ExtractPayloadProperties(ZipArchiveHandle zip) {
+ }
+ 
+ bool SetUpAbUpdateCommands(const std::string& package, ZipArchiveHandle zip, int status_fd,
+-                           std::vector<std::string>* cmd) {
++                           std::vector<std::string>* cmd, bool spl_downgrade) {
+   CHECK(cmd != nullptr);
+ 
+   // For A/B updates we extract the payload properties to a buffer and obtain the RAW payload offset
+   // in the zip file.
+-  const auto payload_properties = ExtractPayloadProperties(zip);
++  auto payload_properties = ExtractPayloadProperties(zip);
+   if (payload_properties.empty()) {
+     return false;
+   }
++  // update_engine refuses an SPL downgrade unless the payload properties carry SPL_DOWNGRADE=1,
++  // which packages built without --spl_downgrade lack. Add it once recovery has approved one.
++  if (spl_downgrade && payload_properties.find("SPL_DOWNGRADE=1") == std::string::npos) {
++    if (payload_properties.back() != '\n') payload_properties += '\n';
++    payload_properties += "SPL_DOWNGRADE=1\n";
++  }
+ 
+   static constexpr const char* AB_OTA_PAYLOAD = "payload.bin";
+   ZipEntry64 payload_entry;
+@@ -427,14 +433,17 @@ static InstallResult TryUpdateBinary(Package* package, bool* wipe_cache,
+       android::base::GetBoolProperty("persist.vendor.recovery_allow_spl_downgrade", true);
+   const auto current_spl = android::base::GetProperty("ro.build.version.security_patch", "");
+   if (ViolatesSPLDowngrade(zip, current_spl)) {
+-    if (!allow_spl_downgrade || !ui->IsTextVisible()) {
++    if (!allow_spl_downgrade) {
+       LOG(ERROR) << "Denying OTA because it's SPL downgrade";
+       return INSTALL_ERROR;
+     }
+-    if (!ask_to_continue_spl_downgrade(device)) {
++    // Ask when the menu can show the prompt; otherwise (e.g. no text UI) accept, as the
++    // persist.vendor.recovery_allow_spl_downgrade property (default true) permits.
++    if (ui->IsTextVisible() && !ask_to_continue_spl_downgrade(device)) {
+       LOG(ERROR) << "User denied SPL downgrade";
+       return INSTALL_ERROR;
+     }
++    LOG(WARNING) << "Installing SPL downgrade package";
+     spl_downgrade_approved = true;
+   }
+ 
+@@ -518,7 +527,8 @@ static InstallResult TryUpdateBinary(Package* package, bool* wipe_cache,
+   std::vector<std::string> args;
+   if (auto setup_result =
+           package_is_ab
+-              ? SetUpAbUpdateCommands(package_path, zip, pipe_write.get(), &args)
++              ? SetUpAbUpdateCommands(package_path, zip, pipe_write.get(), &args,
++                                      spl_downgrade_approved)
+               : SetUpNonAbUpdateCommands(package_path, zip, retry_count, pipe_write.get(), &args);
+       !setup_result) {
+     log_buffer->push_back(android::base::StringPrintf("error: %d", kUpdateBinaryCommandFailure));
