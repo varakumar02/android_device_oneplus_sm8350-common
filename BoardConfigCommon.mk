@@ -92,9 +92,15 @@ BOARD_KERNEL_SEPARATED_DTBO := true
 BOARD_KERNEL_CMDLINE += kpti=off
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
 BOARD_RAMDISK_USE_LZ4 := true
-TARGET_KERNEL_SOURCE := kernel/oneplus/sm8350
-TARGET_KERNEL_CONFIG := vendor/lahaina-qgki_defconfig
+TARGET_KERNEL_SOURCE := kernel/oneplus/sm8350-5.10
+TARGET_KERNEL_CONFIG := gki_defconfig vendor/lahaina_GKI.config
 TARGET_KERNEL_NO_GCC := true
+
+# Kernel modules
+BOARD_KERNEL_MODULES_LOAD_ALLOW_MISSING := true
+BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD := $(strip $(shell cat $(COMMON_PATH)/modules.load.vendor_boot))
+BOOT_KERNEL_MODULES_FINDER := $(COMMON_PATH)/modules-finder.sh
+TARGET_AUTO_COLLECT_KERNEL_MODULE_DEPS := true
 
 # Platform
 BOARD_USES_QCOM_HARDWARE := true
