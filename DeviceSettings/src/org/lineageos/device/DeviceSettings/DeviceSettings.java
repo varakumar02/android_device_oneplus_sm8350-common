@@ -47,6 +47,7 @@ import android.util.ArrayMap;
 import java.util.List;
 import java.util.Map;
 import org.lineageos.internal.util.FileUtils;
+import org.lineageos.device.DeviceSettings.bluetooth.CodecLockService;
 import org.lineageos.device.DeviceSettings.iris.IrisMemcService;
 import org.lineageos.device.DeviceSettings.network.DualWifi;
 import org.lineageos.device.DeviceSettings.network.Smart5gService;
@@ -129,6 +130,10 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
         Handler main = new Handler(Looper.getMainLooper());
         findPreference(Smart5gService.KEY).setOnPreferenceChangeListener((pref, value) -> {
             main.post(() -> Smart5gService.sync(app));
+            return true;
+        });
+        findPreference(CodecLockService.KEY).setOnPreferenceChangeListener((pref, value) -> {
+            main.post(() -> CodecLockService.sync(app));
             return true;
         });
         Preference dualWifi = findPreference(DualWifi.KEY_MODE);
