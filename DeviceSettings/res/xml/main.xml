@@ -183,6 +183,12 @@
             android:title="@string/aptx_adaptive_low_latency_title"
             android:summary="@string/aptx_adaptive_low_latency_summary" />
 
+        <SwitchPreferenceCompat
+            android:key="bt_codec_lock"
+            android:defaultValue="false"
+            android:title="@string/bt_codec_lock_title"
+            android:summary="@string/bt_codec_lock_summary" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

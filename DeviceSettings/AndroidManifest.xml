@@ -127,6 +127,10 @@
             android:exported="false" />
 
         <service
+            android:name=".bluetooth.CodecLockService"
+            android:exported="false" />
+
+        <service
             android:name=".iris.IrisMemcTileService"
             android:enabled="@bool/config_irisMemcSupported"
             android:exported="true"

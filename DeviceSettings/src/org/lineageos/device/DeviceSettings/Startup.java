@@ -67,6 +67,7 @@ public final class Startup extends BroadcastReceiver {
                 org.lineageos.device.DeviceSettings.iris.IrisMemcService.sync(context);
                 org.lineageos.device.DeviceSettings.network.Smart5gService.sync(context);
                 org.lineageos.device.DeviceSettings.network.DualWifi.apply(context);
+                org.lineageos.device.DeviceSettings.bluetooth.CodecLockService.sync(context);
                 org.lineageos.device.DeviceSettings.network.NetworkBandsFragment.restoreNrModeSettings(context);
                 initMaterialEffectSettings(context);
                 org.lineageos.device.DeviceSettings.audioshare.SeparateAppSoundManager.getInstance(context).updateRouting();
