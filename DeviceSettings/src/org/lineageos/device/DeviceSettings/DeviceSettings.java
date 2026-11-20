@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import org.lineageos.internal.util.FileUtils;
 import org.lineageos.device.DeviceSettings.iris.IrisMemcService;
+import org.lineageos.device.DeviceSettings.network.DualWifi;
 
 public class DeviceSettings extends SettingsBasePreferenceFragment
         implements Preference.OnPreferenceChangeListener {
@@ -120,6 +121,19 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
         
         if (!RingPickupService.isSupported(getContext())) {
             getPreferenceScreen().removePreference(findPreference("calls"));
+        }
+
+        // These take effect after the new value is stored, which happens after the listener.
+        Context app = getContext().getApplicationContext();
+        Handler main = new Handler(Looper.getMainLooper());
+        Preference dualWifi = findPreference(DualWifi.KEY_MODE);
+        if (!DualWifi.isSupported(app)) {
+            dualWifi.getParent().removePreference(dualWifi);
+        } else {
+            dualWifi.setOnPreferenceChangeListener((pref, value) -> {
+                main.post(() -> DualWifi.apply(app));
+                return true;
+            });
         }
 
         Preference.OnPreferenceChangeListener videoListener = (pref, value) -> {

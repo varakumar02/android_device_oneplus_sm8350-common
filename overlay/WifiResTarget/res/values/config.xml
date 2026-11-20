@@ -31,4 +31,8 @@
          Note: this is conditional on the device supporting dual concurrent STAs. -->
     <bool name="config_wifiMultiStaRestrictedConcurrencyEnabled">true</bool>
 
+    <!-- Allow two internet STAs at once (DeviceSettings > Dual Wi-Fi turns the mode on).
+         The QCA6490 HAL reports STA+STA with up to 3 STA interfaces. -->
+    <bool name="config_wifiMultiStaMultiInternetConcurrencyEnabled">true</bool>
+
 </resources>

@@ -261,4 +261,11 @@
     <string name="audio_share_category_title">Bluetooth</string>
     <string name="aptx_adaptive_low_latency_title">aptX Adaptive low latency</string>
     <string name="aptx_adaptive_low_latency_summary">Lower audio delay for games and video at a lower bitrate. Available while an aptX Adaptive headset is playing</string>
+    <string name="dual_wifi_title">Dual Wi-Fi</string>
+    <string name="dual_wifi_off">Off</string>
+    <string name="dual_wifi_same_router">Same router, both bands</string>
+    <string name="dual_wifi_any">Any two saved networks</string>
+    <string name="mobile_data_apps_title">Apps on mobile data</string>
+    <string name="mobile_data_apps_summary">Chosen apps use mobile data even while Wi-Fi is connected</string>
+    <string name="mobile_data_apps_hint">These apps keep using mobile data while Wi-Fi is on, for example a game while Wi-Fi is busy. Apps that share a user ID switch together.</string>
 </resources>
