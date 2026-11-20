@@ -151,13 +151,11 @@
             android:title="@string/smart_5g_title"
             android:summary="@string/smart_5g_summary" />
 
-        <ListPreference
-            android:key="dual_wifi_mode"
-            android:defaultValue="0"
+        <SwitchPreferenceCompat
+            android:key="dual_wifi"
+            android:defaultValue="false"
             android:title="@string/dual_wifi_title"
-            android:summary="%s"
-            android:entries="@array/dual_wifi_mode_entries"
-            android:entryValues="@array/dual_wifi_mode_values" />
+            android:summary="@string/dual_wifi_summary" />
 
         <Preference
             android:key="mobile_data_apps"

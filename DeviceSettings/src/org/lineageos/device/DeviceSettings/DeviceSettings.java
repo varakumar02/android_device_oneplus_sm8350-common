@@ -136,7 +136,7 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
             main.post(() -> CodecLockService.sync(app));
             return true;
         });
-        Preference dualWifi = findPreference(DualWifi.KEY_MODE);
+        Preference dualWifi = findPreference(DualWifi.KEY);
         if (!DualWifi.isSupported(app)) {
             dualWifi.getParent().removePreference(dualWifi);
         } else {

@@ -1,17 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-FileCopyrightText: 2026 The AxionOS Project; SPDX-License-Identifier: Apache-2.0 -->
 <resources>
-    <string-array name="dual_wifi_mode_entries">
-        <item>@string/dual_wifi_off</item>
-        <item>@string/dual_wifi_same_router</item>
-        <item>@string/dual_wifi_any</item>
-    </string-array>
-    <!-- WifiManager.WIFI_MULTI_INTERNET_MODE_DISABLED / DBS_AP / MULTI_AP -->
-    <string-array name="dual_wifi_mode_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-    </string-array>
     <string-array name="separate_app_sound_device_entries">
         <item>@string/separate_app_sound_device_speaker</item>
         <item>@string/separate_app_sound_device_bt</item>

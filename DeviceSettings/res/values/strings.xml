@@ -267,9 +267,7 @@
     <string name="smart_5g_title">Smart 5G</string>
     <string name="smart_5g_summary">Use LTE while the screen is off and mobile data is idle, 5G again as soon as the screen turns on</string>
     <string name="dual_wifi_title">Dual Wi-Fi</string>
-    <string name="dual_wifi_off">Off</string>
-    <string name="dual_wifi_same_router">Same router, both bands</string>
-    <string name="dual_wifi_any">Any two saved networks</string>
+    <string name="dual_wifi_summary">Stay connected to a second saved Wi-Fi on the other band, for example both bands of your router</string>
     <string name="mobile_data_apps_title">Apps on mobile data</string>
     <string name="mobile_data_apps_summary">Chosen apps use mobile data even while Wi-Fi is connected</string>
     <string name="mobile_data_apps_hint">These apps keep using mobile data while Wi-Fi is on, for example a game while Wi-Fi is busy. Apps that share a user ID switch together.</string>

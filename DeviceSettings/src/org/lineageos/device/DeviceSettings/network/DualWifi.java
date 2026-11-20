@@ -35,7 +35,7 @@ import java.util.List;
 public class DualWifi extends Service {
 
     private static final String TAG = "DualWifi";
-    public static final String KEY_MODE = "dual_wifi_mode";
+    public static final String KEY = "dual_wifi";
     private static final int[] BANDS = { ScanResult.WIFI_BAND_24_GHZ, ScanResult.WIFI_BAND_5_GHZ };
 
     private final List<ConnectivityManager.NetworkCallback> mCallbacks = new ArrayList<>();
@@ -45,12 +45,18 @@ public class DualWifi extends Service {
         return wifi != null && wifi.isStaConcurrencyForMultiInternetSupported();
     }
 
+    /**
+     * MULTI_AP, not DBS_AP: DBS_AP only takes a second network with the primary's SSID
+     * (WifiConnectivityManager), so routers that name their bands differently ("X" / "X 5G")
+     * never get one. MULTI_AP takes any saved network on the other band, same router included.
+     */
     private static int mode(Context context) {
-        return Integer.parseInt(PreferenceManager.getDefaultSharedPreferences(context)
-                .getString(KEY_MODE, "0"));
+        return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(KEY, false)
+                ? WifiManager.WIFI_MULTI_INTERNET_MODE_MULTI_AP
+                : WifiManager.WIFI_MULTI_INTERNET_MODE_DISABLED;
     }
 
-    /** Applies the saved mode (WifiManager.WIFI_MULTI_INTERNET_MODE_*, 0 off). */
+    /** Applies the saved setting. */
     public static void apply(Context context) {
         if (!isSupported(context)) {
             return;
