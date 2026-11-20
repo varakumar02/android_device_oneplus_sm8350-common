@@ -65,6 +65,7 @@ public final class Startup extends BroadcastReceiver {
                 DeviceSettings.restoreVibStrengthSetting(context);
                 DeviceSettings.restoreVideoEnhance(context);
                 org.lineageos.device.DeviceSettings.iris.IrisMemcService.sync(context);
+                org.lineageos.device.DeviceSettings.network.Smart5gService.sync(context);
                 org.lineageos.device.DeviceSettings.network.DualWifi.apply(context);
                 org.lineageos.device.DeviceSettings.network.NetworkBandsFragment.restoreNrModeSettings(context);
                 initMaterialEffectSettings(context);

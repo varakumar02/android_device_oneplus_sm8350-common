@@ -146,6 +146,12 @@
         </Preference>
 
         <SwitchPreferenceCompat
+            android:key="smart_5g"
+            android:defaultValue="false"
+            android:title="@string/smart_5g_title"
+            android:summary="@string/smart_5g_summary" />
+
+        <SwitchPreferenceCompat
             android:key="dual_wifi"
             android:defaultValue="false"
             android:title="@string/dual_wifi_title"
