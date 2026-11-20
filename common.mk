@@ -217,6 +217,7 @@ PRODUCT_PACKAGES += \
     init.qcom.usb.sh \
     init.qti.kernel.rc \
     init.target.rc \
+    subsys_sleepmon.sh \
     ueventd.oplus.rc \
     ueventd.qcom.rc
 

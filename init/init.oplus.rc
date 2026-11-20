@@ -102,6 +102,15 @@ service oplus-sh /odm/bin/init.oplus.sh
     group root
     oneshot
 
+service vendor.subsys_sleepmon /odm/bin/subsys_sleepmon.sh
+    class late_start
+    user system
+    group system
+    disabled
+
+on property:sys.boot_completed=1
+    start vendor.subsys_sleepmon
+
 service oplus_sensor_fb /odm/bin/oplus_sensor_fb
     user system
     group system
