@@ -49,6 +49,7 @@ import java.util.Map;
 import org.lineageos.internal.util.FileUtils;
 import org.lineageos.device.DeviceSettings.iris.IrisMemcService;
 import org.lineageos.device.DeviceSettings.network.DualWifi;
+import org.lineageos.device.DeviceSettings.network.Smart5gService;
 
 public class DeviceSettings extends SettingsBasePreferenceFragment
         implements Preference.OnPreferenceChangeListener {
@@ -126,6 +127,10 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
         // These take effect after the new value is stored, which happens after the listener.
         Context app = getContext().getApplicationContext();
         Handler main = new Handler(Looper.getMainLooper());
+        findPreference(Smart5gService.KEY).setOnPreferenceChangeListener((pref, value) -> {
+            main.post(() -> Smart5gService.sync(app));
+            return true;
+        });
         Preference dualWifi = findPreference(DualWifi.KEY_MODE);
         if (!DualWifi.isSupported(app)) {
             dualWifi.getParent().removePreference(dualWifi);

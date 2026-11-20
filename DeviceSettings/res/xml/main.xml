@@ -145,6 +145,12 @@
                 android:targetClass="org.lineageos.device.DeviceSettings.network.NetworkBandsActivity" />
         </Preference>
 
+        <SwitchPreferenceCompat
+            android:key="smart_5g"
+            android:defaultValue="false"
+            android:title="@string/smart_5g_title"
+            android:summary="@string/smart_5g_summary" />
+
         <ListPreference
             android:key="dual_wifi_mode"
             android:defaultValue="0"

@@ -119,6 +119,10 @@
             android:exported="false" />
 
         <service
+            android:name=".network.Smart5gService"
+            android:exported="false" />
+
+        <service
             android:name=".iris.IrisMemcTileService"
             android:enabled="@bool/config_irisMemcSupported"
             android:exported="true"

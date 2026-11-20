@@ -261,6 +261,8 @@
     <string name="audio_share_category_title">Bluetooth</string>
     <string name="aptx_adaptive_low_latency_title">aptX Adaptive low latency</string>
     <string name="aptx_adaptive_low_latency_summary">Lower audio delay for games and video at a lower bitrate. Available while an aptX Adaptive headset is playing</string>
+    <string name="smart_5g_title">Smart 5G</string>
+    <string name="smart_5g_summary">Use LTE while the screen is off and mobile data is idle, 5G again as soon as the screen turns on</string>
     <string name="dual_wifi_title">Dual Wi-Fi</string>
     <string name="dual_wifi_off">Off</string>
     <string name="dual_wifi_same_router">Same router, both bands</string>
