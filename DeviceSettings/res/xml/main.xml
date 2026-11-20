@@ -145,6 +145,18 @@
                 android:targetClass="org.lineageos.device.DeviceSettings.network.NetworkBandsActivity" />
         </Preference>
 
+        <SwitchPreferenceCompat
+            android:key="dual_wifi"
+            android:defaultValue="false"
+            android:title="@string/dual_wifi_title"
+            android:summary="@string/dual_wifi_summary" />
+
+        <Preference
+            android:key="mobile_data_apps"
+            android:title="@string/mobile_data_apps_title"
+            android:summary="@string/mobile_data_apps_summary"
+            android:fragment="org.lineageos.device.DeviceSettings.network.MobileDataAppsFragment" />
+
     </PreferenceCategory>
 
     <!-- Bluetooth: Dual A2DP audio sharing -->

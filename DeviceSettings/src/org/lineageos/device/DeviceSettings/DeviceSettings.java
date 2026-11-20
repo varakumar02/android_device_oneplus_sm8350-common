@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import org.lineageos.internal.util.FileUtils;
 import org.lineageos.device.DeviceSettings.iris.IrisMemcService;
+import org.lineageos.device.DeviceSettings.network.DualWifi;
 
 public class DeviceSettings extends SettingsBasePreferenceFragment
         implements Preference.OnPreferenceChangeListener {
@@ -122,6 +123,19 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
             getPreferenceScreen().removePreference(findPreference("calls"));
         }
 
+        // These take effect after the new value is stored, which happens after the listener.
+        Context app = getContext().getApplicationContext();
+        Handler main = new Handler(Looper.getMainLooper());
+        Preference dualWifi = findPreference(DualWifi.KEY);
+        if (!DualWifi.isSupported(app)) {
+            dualWifi.getParent().removePreference(dualWifi);
+        } else {
+            dualWifi.setOnPreferenceChangeListener((pref, value) -> {
+                main.post(() -> DualWifi.apply(app));
+                return true;
+            });
+        }
+
         Preference.OnPreferenceChangeListener videoListener = (pref, value) -> {
             // The new value is stored after this returns.
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
@@ -191,6 +205,11 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
             getActivity().setTitle(R.string.device_title);
         }
         updateAptxLowLatency();
+        Preference dualWifi = findPreference(DualWifi.KEY);
+        if (dualWifi != null) {
+            String status = DualWifi.status();
+            dualWifi.setSummary(status != null ? status : getString(R.string.dual_wifi_summary));
+        }
     }
 
     @Override
