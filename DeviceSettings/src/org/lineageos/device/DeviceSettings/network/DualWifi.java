@@ -5,67 +5,110 @@
 
 package org.lineageos.device.DeviceSettings.network;
 
-import android.app.PendingIntent;
+import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
+import android.os.IBinder;
 import android.util.Log;
 
 import androidx.preference.PreferenceManager;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Dual Wi-Fi: a second internet Wi-Fi connection next to the primary one, through the
- * framework's multi-internet STA+STA mode. The mode is not persisted by Wi-Fi, so it is set
- * again at boot. The framework only brings up the second STA for a band request from a
- * caller with NETWORK_SETTINGS (MultiInternetWifiNetworkFactory); a request per band is held,
- * and the band the primary already uses counts as connected, so the other band gets the
- * second connection. PendingIntent requests outlive this process.
+ * framework's multi-internet STA+STA mode. Wi-Fi does not persist the mode, so it is set
+ * again at boot. MultiInternetWifiNetworkFactory only brings up the second STA while an
+ * INTERNET request with a band-only WifiNetworkSpecifier from a NETWORK_SETTINGS holder is
+ * active; this sticky service holds one per band (the primary's band counts as connected, so
+ * the other band gets the second connection). Callback requests, not PendingIntent ones:
+ * ConnectivityService drops a PendingIntent request 5 s after its intent fires.
  */
-public final class DualWifi {
+public class DualWifi extends Service {
 
     private static final String TAG = "DualWifi";
     public static final String KEY_MODE = "dual_wifi_mode";
-    private static final String ACTION = "org.lineageos.device.DeviceSettings.DUAL_WIFI";
     private static final int[] BANDS = { ScanResult.WIFI_BAND_24_GHZ, ScanResult.WIFI_BAND_5_GHZ };
 
-    private DualWifi() {
-    }
+    private final List<ConnectivityManager.NetworkCallback> mCallbacks = new ArrayList<>();
 
     public static boolean isSupported(Context context) {
         WifiManager wifi = context.getSystemService(WifiManager.class);
         return wifi != null && wifi.isStaConcurrencyForMultiInternetSupported();
     }
 
-    /** Applies the saved mode: WifiManager.WIFI_MULTI_INTERNET_MODE_* (0 off). */
+    private static int mode(Context context) {
+        return Integer.parseInt(PreferenceManager.getDefaultSharedPreferences(context)
+                .getString(KEY_MODE, "0"));
+    }
+
+    /** Applies the saved mode (WifiManager.WIFI_MULTI_INTERNET_MODE_*, 0 off). */
     public static void apply(Context context) {
         if (!isSupported(context)) {
             return;
         }
-        int mode = Integer.parseInt(PreferenceManager.getDefaultSharedPreferences(context)
-                .getString(KEY_MODE, "0"));
+        int mode = mode(context);
         context.getSystemService(WifiManager.class).setStaConcurrencyForMultiInternetMode(mode);
+        Intent service = new Intent(context, DualWifi.class);
+        // restart so the requests are made under the new mode
+        context.stopService(service);
+        if (mode != WifiManager.WIFI_MULTI_INTERNET_MODE_DISABLED) {
+            context.startService(service);
+        }
+        Log.i(TAG, "mode " + mode);
+    }
 
-        ConnectivityManager cm = context.getSystemService(ConnectivityManager.class);
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         for (int band : BANDS) {
-            PendingIntent pi = PendingIntent.getBroadcast(context, band,
-                    new Intent(ACTION).setPackage(context.getPackageName()),
-                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-            cm.releaseNetworkRequest(pi);
-            if (mode == WifiManager.WIFI_MULTI_INTERNET_MODE_DISABLED) {
-                continue;
-            }
             NetworkRequest request = new NetworkRequest.Builder()
                     .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                     .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                     .setNetworkSpecifier(new WifiNetworkSpecifier.Builder().setBand(band).build())
                     .build();
-            cm.requestNetwork(request, pi);
+            ConnectivityManager.NetworkCallback cb = new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network network) {
+                    Log.i(TAG, "band " + band + " connected: " + network);
+                }
+
+                @Override
+                public void onLost(Network network) {
+                    Log.i(TAG, "band " + band + " lost: " + network);
+                }
+            };
+            cm.requestNetwork(request, cb);
+            mCallbacks.add(cb);
         }
-        Log.i(TAG, "mode " + mode);
+    }
+
+    @Override
+    public void onDestroy() {
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        for (ConnectivityManager.NetworkCallback cb : mCallbacks) {
+            cm.unregisterNetworkCallback(cb);
+        }
+        mCallbacks.clear();
+        super.onDestroy();
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        return START_STICKY;
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
     }
 }

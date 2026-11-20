@@ -123,6 +123,10 @@
             android:exported="false" />
 
         <service
+            android:name=".network.DualWifi"
+            android:exported="false" />
+
+        <service
             android:name=".bluetooth.CodecLockService"
             android:exported="false" />
 
