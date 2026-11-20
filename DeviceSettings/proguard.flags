@@ -4,4 +4,13 @@
 -keep class org.lineageos.device.DeviceSettings.iris.* {
   *;
 }
+-keep class org.lineageos.device.DeviceSettings.network.* {
+  *;
+}
+-keep class org.lineageos.device.DeviceSettings.bluetooth.* {
+  *;
+}
+-keep class org.lineageos.device.DeviceSettings.audioshare.* {
+  *;
+}
 -dontwarn androidx.window.**
