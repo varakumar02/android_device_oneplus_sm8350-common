@@ -1,0 +1,77 @@
+From c2a259c3a2f3be6ec79d9e4d410e81bb7e1c781d Mon Sep 17 00:00:00 2001
+From: varakumar02 <tony_1@riseup.net>
+Date: Sun, 22 Nov 2026 02:45:07 +0530
+Subject: [PATCH] Settings: Don't clip the UDFPS enroll ring in setup wizard
+
+On devices with a low UDFPS sensor the enroll progress ring is drawn
+around the sensor, below the bottom of the template's content
+ScrollView (sud_scroll_view ends where the footer bar starts). During
+setup the enrolling screen gets a setup wizard theme (GlifV*Theme from
+SetupWizardUtils.getTheme()), which keeps setupdesign's default
+sudClipChildren/sudClipToPadding of true, so everything below that edge
+is cut off and only the top of the ring shows. The same screen from
+Settings uses a theme that does not clip, so it draws fully there.
+
+Turn clipping off on every container between the ring and the
+enrolling layout in portrait, so the ring is drawn fully whatever the
+theme.
+
+Tested on OnePlus 9 (lemonade, sensor at y=2206 of 2400): before, the
+ring was cut at y=2040 during setup and complete from Settings.
+
+Signed-off-by: varakumar02 <tony_1@riseup.net>
+---
+ .../fingerprint/UdfpsEnrollEnrollingView.java | 23 +++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java b/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java
+index d9f6ba5..c40b912 100644
+--- a/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java
++++ b/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java
+@@ -37,6 +37,7 @@ import android.view.LayoutInflater;
+ import android.view.Surface;
+ import android.view.View;
+ import android.view.ViewGroup;
++import android.view.ViewParent;
+ import android.view.WindowInsets;
+ import android.view.WindowManager;
+ import android.view.accessibility.AccessibilityManager;
+@@ -277,6 +278,7 @@ public class UdfpsEnrollEnrollingView extends GlifLayout {
+ 
+         if (!mIsLandscape) {
+             adjustPortraitPaddings();
++            disableClippingToRoot(mUdfpsEnrollView);
+         } else if (mShouldUseReverseLandscape) {
+             swapHeaderAndContent();
+         }
+@@ -361,6 +363,27 @@ public class UdfpsEnrollEnrollingView extends GlifLayout {
+         mUdfpsEnrollView.setEnrollHelper(udfpsEnrollHelper);
+     }
+ 
++    /**
++     * The enroll progress ring is drawn around the UDFPS sensor, which on low sensors sits
++     * below the bottom of the template's content ScrollView (sud_scroll_view ends where the
++     * footer bar starts). Setup wizard themes (GlifV*Theme) keep setupdesign's default
++     * sudClipChildren/sudClipToPadding of true, so the ring is cut at that edge during setup,
++     * while the Settings theme lets it draw past it. Turn clipping off on every container
++     * between the ring and this layout so it draws fully whatever the theme.
++     */
++    private void disableClippingToRoot(View view) {
++        ViewParent parent = view.getParent();
++        while (parent instanceof ViewGroup) {
++            final ViewGroup group = (ViewGroup) parent;
++            group.setClipChildren(false);
++            group.setClipToPadding(false);
++            if (group == this) {
++                break;
++            }
++            parent = group.getParent();
++        }
++    }
++
+     private void adjustPortraitPaddings() {
+         // In the portrait mode, layout_container's height is 0, so it's
+         // always shown at the bottom of the screen.
+-- 
+2.56.1
+
