@@ -151,19 +151,15 @@
             android:title="@string/smart_5g_title"
             android:summary="@string/smart_5g_summary" />
 
-        <SwitchPreferenceCompat
-            android:key="dual_wifi"
-            android:defaultValue="false"
+        <Preference
+            android:key="dual_wifi_entry"
             android:title="@string/dual_wifi_title"
-            android:summary="@string/dual_wifi_summary" />
-
-        <ListPreference
-            android:key="dual_wifi_secondary"
-            android:dependency="dual_wifi"
-            android:defaultValue=""
-            android:title="@string/dual_wifi_secondary_title"
-            android:dialogTitle="@string/dual_wifi_secondary_title"
-            android:summary="%s" />
+            android:summary="@string/dual_wifi_summary">
+            <intent
+                android:action="android.intent.action.MAIN"
+                android:targetPackage="org.lineageos.device.DeviceSettings"
+                android:targetClass="org.lineageos.device.DeviceSettings.network.DualWifiActivity" />
+        </Preference>
 
         <Preference
             android:key="mobile_data_apps"

@@ -126,6 +126,32 @@
             android:name=".network.DualWifi"
             android:exported="false" />
 
+        <activity
+            android:name=".network.DualWifiActivity"
+            android:label="@string/dual_wifi_title"
+            android:theme="@style/Theme.DeviceSettings"
+            android:enableOnBackInvokedCallback="true"
+            android:exported="true">
+            <!-- long press on the tile -->
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".network.DualWifiTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_dual_wifi"
+            android:label="@string/dual_wifi_title"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
         <service
             android:name=".bluetooth.CodecLockService"
             android:exported="false" />

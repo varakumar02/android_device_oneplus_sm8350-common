@@ -64,6 +64,7 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
     private static final String KEY_EDGE_TOUCH = "edge_touch";
     private static final String KEY_USB2_SWITCH = "usb2_fast_charge";
     private static final String KEY_VIBSTRENGTH = "vib_strength";
+    private static final String KEY_DUAL_WIFI_ENTRY = "dual_wifi_entry";
     private static final String KEY_VIDEO_COLOR = "video_color";
     private static final String KEY_VIDEO_SR = "video_sr";
     private static final String KEY_APTX_LOW_LATENCY = "aptx_adaptive_low_latency";
@@ -136,18 +137,9 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
             main.post(() -> CodecLockService.sync(app));
             return true;
         });
-        Preference dualWifi = findPreference(DualWifi.KEY);
-        Preference secondary = findPreference(DualWifi.KEY_SECONDARY);
+        Preference dualWifi = findPreference(KEY_DUAL_WIFI_ENTRY);
         if (!DualWifi.isSupported(app)) {
             dualWifi.getParent().removePreference(dualWifi);
-            secondary.getParent().removePreference(secondary);
-        } else {
-            Preference.OnPreferenceChangeListener dualListener = (pref, value) -> {
-                main.post(() -> DualWifi.apply(app));
-                return true;
-            };
-            dualWifi.setOnPreferenceChangeListener(dualListener);
-            secondary.setOnPreferenceChangeListener(dualListener);
         }
 
         Preference.OnPreferenceChangeListener videoListener = (pref, value) -> {
@@ -219,25 +211,17 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
             getActivity().setTitle(R.string.device_title);
         }
         updateAptxLowLatency();
-        Preference dualWifi = findPreference(DualWifi.KEY);
+        Preference dualWifi = findPreference(KEY_DUAL_WIFI_ENTRY);
         if (dualWifi != null) {
-            String status = DualWifi.status();
-            dualWifi.setSummary(status != null ? status : getString(R.string.dual_wifi_summary));
-        }
-        ListPreference secondary = findPreference(DualWifi.KEY_SECONDARY);
-        if (secondary != null) {
-            // Saved networks can change while we are away.
-            String[] ssids = DualWifi.savedSsids(getContext());
-            String[] entries = new String[ssids.length + 1];
-            String[] values = new String[ssids.length + 1];
-            entries[0] = getString(R.string.dual_wifi_secondary_auto);
-            values[0] = "";
-            System.arraycopy(ssids, 0, entries, 1, ssids.length);
-            System.arraycopy(ssids, 0, values, 1, ssids.length);
-            secondary.setEntries(entries);
-            secondary.setEntryValues(values);
-            if (secondary.findIndexOfValue(secondary.getValue()) < 0) {
-                secondary.setValue("");
+            DualWifi.State s = DualWifi.state();
+            if (!DualWifi.isEnabled(getContext())) {
+                dualWifi.setSummary(R.string.dual_wifi_off);
+            } else if (s.onBackup) {
+                dualWifi.setSummary(getString(R.string.dual_wifi_entry_using, s.backup));
+            } else if (s.backup != null) {
+                dualWifi.setSummary(getString(R.string.dual_wifi_entry_on, s.backup));
+            } else {
+                dualWifi.setSummary(R.string.dual_wifi_entry_waiting);
             }
         }
     }
