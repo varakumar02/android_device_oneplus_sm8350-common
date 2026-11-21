@@ -1,4 +1,4 @@
-From 5b3c434bb15674591685ebe398489e81a5a7b3f7 Mon Sep 17 00:00:00 2001
+From c95cf590ce8217b5c42e937fff92cddec4656e62 Mon Sep 17 00:00:00 2001
 From: varakumar02 <tony_1@riseup.net>
 Date: Sun, 22 Nov 2026 02:45:07 +0530
 Subject: [PATCH] Settings: Show the full UDFPS enroll ring in setup wizard
@@ -13,32 +13,29 @@ its top arc above the footer is visible. Two things differ in setup:
   SetupWizardUtils.getTheme()), which keeps setupdesign's default
   sudClipChildren/sudClipToPadding of true, so the template clips the
   ring at the bottom of sud_scroll_view.
-- GlifLayout.updateBackgroundColor() repaints the footer bar and the
-  navigation bar from onApplyWindowInsets() (when the window attaches,
-  after FingerprintEnrollEnrolling made the footer transparent in
-  onCreate()) and, with GlifExpressive, from onScrolling(). During
-  setup it paints an opaque color (the partner footer color, or the
-  content background color with dynamic color) over the ring; outside
-  setup it paints transparent.
+- With GlifExpressive, GlifLayout.updateBackgroundColor() repaints the
+  footer bar and the navigation bar on every scroll of its scroll views
+  and once shortly after the layout is shown. During setup it paints
+  the partner footer color (CONFIG_FOOTER_BAR_BG_COLOR), outside setup
+  it paints transparent, so in setup the footer covers the ring even
+  though FingerprintEnrollEnrolling sets the button container
+  transparent in onCreate().
 
 In portrait, turn clipping off on every container between the ring and
-the enrolling layout, and put the footer bar and navigation bar back to
-transparent after GlifLayout repaints them in onApplyWindowInsets() and
-onScrolling().
+the enrolling layout, and override onScrolling() to put the footer bar
+and navigation bar back to transparent after GlifLayout repaints them.
 
 Tested on OnePlus 9 (lemonade, sensor at y=2206 of 2400): the ring view
 spans y=2065-2459, sud_scroll_view ends and the footer starts at
-y=2040. With debug.hwui.overdraw the ring is drawn in full but covered
-by an opaque layer from y=2040 down (the footer); SetupLibrary logs
-"[GlifLayout] Set footer background color as content background color".
+y=2040, and the ring was cut there during setup.
 
 Signed-off-by: varakumar02 <tony_1@riseup.net>
 ---
- .../fingerprint/UdfpsEnrollEnrollingView.java | 60 +++++++++++++++++++
- 1 file changed, 60 insertions(+)
+ .../fingerprint/UdfpsEnrollEnrollingView.java | 48 +++++++++++++++++++
+ 1 file changed, 48 insertions(+)
 
 diff --git a/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java b/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java
-index d9f6ba5..6be7cd3 100644
+index d9f6ba5..8b2ce22 100644
 --- a/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java
 +++ b/src/com/android/settings/biometrics/fingerprint/UdfpsEnrollEnrollingView.java
 @@ -21,6 +21,7 @@ import android.animation.ObjectAnimator;
@@ -73,7 +70,7 @@ index d9f6ba5..6be7cd3 100644
          } else if (mShouldUseReverseLandscape) {
              swapHeaderAndContent();
          }
-@@ -361,6 +365,62 @@ public class UdfpsEnrollEnrollingView extends GlifLayout {
+@@ -361,6 +365,50 @@ public class UdfpsEnrollEnrollingView extends GlifLayout {
          mUdfpsEnrollView.setEnrollHelper(udfpsEnrollHelper);
      }
  
@@ -99,27 +96,15 @@ index d9f6ba5..6be7cd3 100644
 +    }
 +
 +    /**
-+     * In portrait the progress ring sits behind the footer bar. GlifLayout repaints the footer
-+     * and navigation bar in updateBackgroundColor() from onApplyWindowInsets() (when the window
-+     * attaches, after FingerprintEnrollEnrolling made the footer transparent in onCreate()) and,
-+     * with GlifExpressive, from onScrolling(). During setup it paints an opaque color (the
-+     * partner footer color, or the content background color with dynamic color), which covers
-+     * the ring; outside setup it paints transparent. Keep both transparent after each repaint.
++     * In portrait the progress ring sits behind the footer bar. With GlifExpressive,
++     * GlifLayout repaints the footer and navigation bar in updateBackgroundColor() whenever
++     * its scroll views report a scroll (and once shortly after the layout is shown): with
++     * the partner footer color during setup, transparent elsewhere. During setup that covers
++     * the ring, so keep both transparent here as they are outside setup.
 +     */
-+    @Override
-+    public WindowInsets onApplyWindowInsets(WindowInsets insets) {
-+        final WindowInsets result = super.onApplyWindowInsets(insets);
-+        keepFooterTransparent();
-+        return result;
-+    }
-+
 +    @Override
 +    protected void onScrolling(boolean isBottom) {
 +        super.onScrolling(isBottom);
-+        keepFooterTransparent();
-+    }
-+
-+    private void keepFooterTransparent() {
 +        if (mIsLandscape) {
 +            return;
 +        }
