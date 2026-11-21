@@ -50,8 +50,11 @@ import java.util.TreeSet;
  * is several network callbacks within a second.
  * A chosen secondary network pins the band request of the band it is seen on to its strongest
  * BSSID; Wi-Fi accepts a BSSID in a multi-internet request only from a NETWORK_SETTINGS holder
- * (MultiInternetWifiNetworkFactory.isWifiMultiInternetRequest) and then only picks that BSSID
- * for the band (WifiConnectivityManager getSpecifiedBssids).
+ * (MultiInternetWifiNetworkFactory.isWifiMultiInternetRequest). Once any band is pinned,
+ * WifiConnectivityManager only takes pinned candidates as the secondary (getSpecifiedBssids),
+ * so a pin on the primary's own band leaves none ("No secondary cmm candidate"). When the chosen
+ * network is on the primary's band (usually it is the primary), the primary is moved to the
+ * strongest other saved network on the other band first, as a tap in Wi-Fi settings would.
  */
 public class DualWifi extends Service {
 
@@ -70,10 +73,10 @@ public class DualWifi extends Service {
     private final List<ConnectivityManager.NetworkCallback> mCallbacks = new ArrayList<>();
     // Band requests and the pin state below are only touched on the main thread.
     private final List<ConnectivityManager.NetworkCallback> mBandCallbacks = new ArrayList<>();
-    // The chosen secondary was found in a scan and its band request carries the BSSID.
-    private boolean mPinned;
-    // Primary network the lookup last ran for, so it is retried once per new primary.
-    private Network mPinPrimary;
+    // BSSID the band requests are pinned to, null = automatic.
+    private String mPinnedBssid;
+    // Primary the pin was last decided for: decided once per new primary.
+    private Network mSeenPrimary;
     // Only touched on the main thread: every callback below is registered with mHandler.
     private final Map<Network, WifiInfo> mWifi = new HashMap<>();
     private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -124,7 +127,7 @@ public class DualWifi extends Service {
     public void onCreate() {
         super.onCreate();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
-        requestBands();
+        requestBands(null);
 
         getSystemService(NotificationManager.class).deleteNotificationChannel(OLD_CHANNEL);
         // Every Wi-Fi network, the secondary included (it may not be NOT_RESTRICTED);
@@ -171,19 +174,59 @@ public class DualWifi extends Service {
     }
 
     /**
-     * One band request per band; the band the chosen secondary is seen on carries its BSSID.
-     * Made again (old requests dropped first) when a new primary connects while the chosen
-     * network was not found yet, e.g. at boot before the first scan.
+     * Decides the pin when a new primary connects (scan results exist by then). Requests are
+     * only remade when the pin changes: dropping a band request disconnects a secondary on it.
      */
-    private void requestBands() {
+    private void onNewPrimary(WifiInfo primary) {
+        String chosen = PreferenceManager.getDefaultSharedPreferences(this)
+                .getString(KEY_SECONDARY, "");
+        ScanResult pin = strongest(chosen);
+        int primaryBand = band(primary.getFrequency());
+        if (pin != null && band(pin.frequency) == primaryBand) {
+            pin = null;
+            movePrimaryOffBand(chosen, primaryBand);
+        }
+        if (!TextUtils.equals(pin != null ? pin.BSSID : null, mPinnedBssid)) {
+            requestBands(pin);
+        }
+    }
+
+    /** Connects the primary to the strongest saved network seen on the other Dual Wi-Fi band. */
+    private void movePrimaryOffBand(String chosen, int primaryBand) {
+        WifiManager wm = getSystemService(WifiManager.class);
+        List<WifiConfiguration> saved = wm.getConfiguredNetworks();
+        ScanResult best = null;
+        WifiConfiguration target = null;
+        for (ScanResult r : wm.getScanResults()) {
+            int b = band(r.frequency);
+            if (b == primaryBand || (b != BANDS[0] && b != BANDS[1]) || chosen.equals(r.SSID)
+                    || (best != null && r.level <= best.level)) {
+                continue;
+            }
+            for (WifiConfiguration c : saved) {
+                if (r.SSID.equals(unquote(c.SSID))) {
+                    best = r;
+                    target = c;
+                    break;
+                }
+            }
+        }
+        if (target == null) {
+            Log.w(TAG, "no saved network on the other band, " + chosen + " stays primary");
+            return;
+        }
+        Log.i(TAG, "primary to " + best.SSID + " so " + chosen + " can be secondary");
+        wm.connect(target.networkId, null);
+    }
+
+    /** One band request per band; the band of {@code pin}, if any, carries its BSSID. */
+    private void requestBands(ScanResult pin) {
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         for (ConnectivityManager.NetworkCallback cb : mBandCallbacks) {
             cm.unregisterNetworkCallback(cb);
         }
         mBandCallbacks.clear();
-        ScanResult pin = strongest(PreferenceManager.getDefaultSharedPreferences(this)
-                .getString(KEY_SECONDARY, ""));
-        mPinned = pin != null;
+        mPinnedBssid = pin != null ? pin.BSSID : null;
         for (int band : BANDS) {
             WifiNetworkSpecifier.Builder spec = new WifiNetworkSpecifier.Builder().setBand(band);
             if (pin != null && band(pin.frequency) == band) {
@@ -240,8 +283,6 @@ public class DualWifi extends Service {
 
     /**
      * Strongest BSSID of {@code ssid} on a Dual Wi-Fi band in the last scan, or null.
-     * ponytail: the BSSID is fixed once found; an AP whose BSSID changes needs the choice
-     * saved again (or a reboot).
      */
     private ScanResult strongest(String ssid) {
         if (ssid.isEmpty()) {
@@ -281,11 +322,9 @@ public class DualWifi extends Service {
                 secondaryInfo = e.getValue();
             }
         }
-        if (!mPinned && primary != null && !primary.equals(mPinPrimary)
-                && !PreferenceManager.getDefaultSharedPreferences(this)
-                        .getString(KEY_SECONDARY, "").isEmpty()) {
-            mPinPrimary = primary;
-            requestBands();
+        if (primary != null && !primary.equals(mSeenPrimary)) {
+            mSeenPrimary = primary;
+            onNewPrimary(primaryInfo);
         }
         String none = getString(R.string.dual_wifi_none);
         String status = getString(R.string.dual_wifi_status,
