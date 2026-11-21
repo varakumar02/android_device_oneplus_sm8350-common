@@ -7,12 +7,11 @@ package org.lineageos.device.DeviceSettings.network;
 
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.hardware.display.DisplayManager;
 import android.net.ConnectivityManager;
 import android.net.MacAddress;
 import android.net.Network;
@@ -69,8 +68,11 @@ import java.util.concurrent.CopyOnWriteArraySet;
  *   network, the main network is probed every 10 s (5 s deadline per probe, DNS included); two
  *   failed probes report it with
  *   reportNetworkConnectivity(main, false), which makes NetworkMonitor revalidate at once.
- * - Save battery when locked: the band requests are released while the screen is off (the
- *   backup disconnects) and made again when it turns on.
+ * - Save battery when locked: the band requests are released while the device is not
+ *   interactive (screen off or AOD; the backup disconnects) and made again when it is. Display
+ *   changes come from a DisplayListener (a binder callback): ACTION_SCREEN_ON/OFF broadcasts to
+ *   this process were DEFERRED by the broadcast queue once the screen was off, so the backup
+ *   never came back on unlock.
  * - Toasts only when apps move between the two, or as feedback right after the user changes
  *   something. The page (DualWifiFragment) and the tile read state().
  */
@@ -157,7 +159,7 @@ public class DualWifi extends Service {
     private String mShownBackup;
     private boolean mShownOnBackup, mBaseline;
     private final Runnable mAnnounce = this::announce;
-    private BroadcastReceiver mScreenReceiver;
+    private DisplayManager.DisplayListener mDisplayListener;
 
     private HandlerThread mProbeThread;
     private Handler mProbeHandler;
@@ -262,21 +264,33 @@ public class DualWifi extends Service {
         getSystemService(NotificationManager.class).deleteNotificationChannel(OLD_CHANNEL);
 
         if (prefs().getBoolean(KEY_SAVE_LOCKED, false)) {
-            mPaused = !getSystemService(PowerManager.class).isInteractive();
-            mScreenReceiver = new BroadcastReceiver() {
+            PowerManager pm = getSystemService(PowerManager.class);
+            mPaused = !pm.isInteractive();
+            mDisplayListener = new DisplayManager.DisplayListener() {
                 @Override
-                public void onReceive(Context context, Intent intent) {
-                    mPaused = Intent.ACTION_SCREEN_OFF.equals(intent.getAction());
+                public void onDisplayChanged(int displayId) {
+                    boolean paused = !pm.isInteractive();
+                    if (paused == mPaused) {
+                        return;
+                    }
+                    mPaused = paused;
                     if (mPaused && mBackup != null) {
                         mQuiet = true;
                     }
                     syncRequests();
                     update();
                 }
+
+                @Override
+                public void onDisplayAdded(int displayId) {
+                }
+
+                @Override
+                public void onDisplayRemoved(int displayId) {
+                }
             };
-            IntentFilter screen = new IntentFilter(Intent.ACTION_SCREEN_OFF);
-            screen.addAction(Intent.ACTION_SCREEN_ON);
-            registerReceiver(mScreenReceiver, screen);
+            getSystemService(DisplayManager.class).registerDisplayListener(mDisplayListener,
+                    mHandler);
         }
         syncRequests();
 
@@ -610,8 +624,8 @@ public class DualWifi extends Service {
             cm.unregisterNetworkCallback(cb);
         }
         mBandCallbacks.clear();
-        if (mScreenReceiver != null) {
-            unregisterReceiver(mScreenReceiver);
+        if (mDisplayListener != null) {
+            getSystemService(DisplayManager.class).unregisterDisplayListener(mDisplayListener);
         }
         if (mProbeThread != null) {
             mProbeHandler.removeCallbacks(mProbe);
