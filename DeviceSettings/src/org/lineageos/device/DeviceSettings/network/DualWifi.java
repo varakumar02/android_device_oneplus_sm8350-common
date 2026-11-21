@@ -45,7 +45,8 @@ import java.util.TreeSet;
  * the other band gets the second connection). Callback requests, not PendingIntent ones:
  * ConnectivityService drops a PendingIntent request 5 s after its intent fires.
  * The switch summary shows which network is primary and which secondary, and a toast (like
- * the MEMC one) pops up when either connects, drops or changes, or apps move between them.
+ * the MEMC one) pops up when the secondary connects or drops, or apps move between the two;
+ * the primary is what Wi-Fi shows anyway, so its changes get no toast.
  * One toast per change: events are collected for ANNOUNCE_DELAY_MS, since a single failover
  * is several network callbacks within a second.
  * A chosen secondary network pins the band request of the band it is seen on to its strongest
@@ -82,7 +83,7 @@ public class DualWifi extends Service {
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private Network mDefault;
     // Current state (labels, null = none) and the state the last toast described.
-    private String mPrimary, mSecondary, mShownPrimary, mShownSecondary;
+    private String mPrimary, mSecondary, mShownSecondary;
     private boolean mOnSecondary, mShownOnSecondary, mBaseline;
     private final Runnable mAnnounce = this::announce;
 
@@ -349,18 +350,11 @@ public class DualWifi extends Service {
     private void announce() {
         StringBuilder msg = new StringBuilder();
         if (mBaseline) {
-            if (!TextUtils.equals(mPrimary, mShownPrimary)) {
-                if (mPrimary != null) {
-                    line(msg, getString(R.string.dual_wifi_toast_primary, mPrimary));
-                } else {
-                    line(msg, getString(R.string.dual_wifi_toast_primary_off, mShownPrimary));
-                }
-            }
             if (!TextUtils.equals(mSecondary, mShownSecondary)) {
                 if (mSecondary != null) {
                     line(msg, getString(R.string.dual_wifi_toast_secondary_on, mSecondary));
                 } else {
-                    line(msg, getString(R.string.dual_wifi_toast_secondary_off, mShownSecondary));
+                    line(msg, getString(R.string.dual_wifi_toast_secondary_off));
                 }
             }
             if (mOnSecondary && !mShownOnSecondary) {
@@ -370,13 +364,11 @@ public class DualWifi extends Service {
             }
         }
         mBaseline = true;
-        mShownPrimary = mPrimary;
         mShownSecondary = mSecondary;
         mShownOnSecondary = mOnSecondary;
         if (msg.length() > 0) {
             Log.i(TAG, "toast: " + msg.toString().replace('\n', ' '));
-            Toast.makeText(this, getString(R.string.dual_wifi_title) + "\n" + msg,
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         }
     }
 
