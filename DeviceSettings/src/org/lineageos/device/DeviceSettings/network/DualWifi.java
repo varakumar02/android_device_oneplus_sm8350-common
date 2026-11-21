@@ -66,7 +66,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * - Fast switch: ConnectivityService only notices a dead main network when NetworkMonitor sees
  *   a data stall (DNS timeouts from app traffic) or revalidates, about 2 minutes in the
  *   failover test. While a backup is connected, the screen is on and apps are on the main
- *   network, the main network is probed every 10 s; two failed probes report it with
+ *   network, the main network is probed every 10 s (5 s deadline per probe, DNS included); two
+ *   failed probes report it with
  *   reportNetworkConnectivity(main, false), which makes NetworkMonitor revalidate at once.
  * - Save battery when locked: the band requests are released while the screen is off (the
  *   backup disconnects) and made again when it turns on.
@@ -91,6 +92,9 @@ public class DualWifi extends Service {
     private static final long PROBE_INTERVAL_MS = 10_000;
     private static final long PROBE_BACKOFF_MS = 30_000;
     private static final int PROBE_TIMEOUT_MS = 3000;
+    // Whole probe, DNS included: a lookup through a dead network (Private DNS) can hang for over
+    // a minute, which the connect/read timeouts do not cover.
+    private static final long PROBE_DEADLINE_MS = 5000;
     private static final int PROBE_FAILS = 2;
     private static final String PROBE_URL = "https://www.google.com/generate_204";
     private static final int LOG_SIZE = 8;
@@ -159,6 +163,8 @@ public class DualWifi extends Service {
     private Handler mProbeHandler;
     private volatile Network mProbeTarget;
     private int mProbeFails;
+    private Thread mProbeWorker;
+    private volatile boolean mProbeOk;
     private final Runnable mProbe = this::probeTick;
 
     public static boolean isSupported(Context context) {
@@ -536,7 +542,7 @@ public class DualWifi extends Service {
         long next = PROBE_INTERVAL_MS;
         Network target = mProbeTarget;
         if (target != null && getSystemService(PowerManager.class).isInteractive()) {
-            if (probe(target)) {
+            if (probeWithDeadline(target)) {
                 mProbeFails = 0;
             } else if (++mProbeFails >= PROBE_FAILS) {
                 mProbeFails = 0;
@@ -552,6 +558,25 @@ public class DualWifi extends Service {
             mProbeFails = 0;
         }
         mProbeHandler.postDelayed(mProbe, next);
+    }
+
+    /**
+     * Runs probe() on its own thread and fails it after PROBE_DEADLINE_MS. A probe still stuck from
+     * the last tick also counts as failed, so at most one worker is ever alive.
+     */
+    private boolean probeWithDeadline(Network network) {
+        if (mProbeWorker != null && mProbeWorker.isAlive()) {
+            return false;
+        }
+        mProbeOk = false;
+        mProbeWorker = new Thread(() -> mProbeOk = probe(network), TAG + "-probe");
+        mProbeWorker.start();
+        try {
+            mProbeWorker.join(PROBE_DEADLINE_MS);
+        } catch (InterruptedException e) {
+            return false;
+        }
+        return !mProbeWorker.isAlive() && mProbeOk;
     }
 
     private boolean probe(Network network) {
