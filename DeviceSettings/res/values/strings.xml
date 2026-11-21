@@ -272,6 +272,8 @@
     <string name="dual_wifi_none">none</string>
     <string name="dual_wifi_apps_on">Apps now on: %1$s (secondary)</string>
     <string name="dual_wifi_notif_title">Secondary Wi-Fi active</string>
+    <string name="dual_wifi_secondary_title">Secondary network</string>
+    <string name="dual_wifi_secondary_auto">Automatic (any saved network on the other band)</string>
     <string name="mobile_data_apps_title">Apps on mobile data</string>
     <string name="mobile_data_apps_summary">Chosen apps use mobile data even while Wi-Fi is connected</string>
     <string name="mobile_data_apps_hint">These apps keep using mobile data while Wi-Fi is on, for example a game while Wi-Fi is busy. Apps that share a user ID switch together.</string>

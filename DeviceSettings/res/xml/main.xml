@@ -157,6 +157,14 @@
             android:title="@string/dual_wifi_title"
             android:summary="@string/dual_wifi_summary" />
 
+        <ListPreference
+            android:key="dual_wifi_secondary"
+            android:dependency="dual_wifi"
+            android:defaultValue=""
+            android:title="@string/dual_wifi_secondary_title"
+            android:dialogTitle="@string/dual_wifi_secondary_title"
+            android:summary="%s" />
+
         <Preference
             android:key="mobile_data_apps"
             android:title="@string/mobile_data_apps_title"

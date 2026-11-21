@@ -13,10 +13,12 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
+import android.net.MacAddress;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
@@ -34,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * Dual Wi-Fi: a second internet Wi-Fi connection next to the primary one, through the
@@ -45,11 +48,17 @@ import java.util.Map;
  * ConnectivityService drops a PendingIntent request 5 s after its intent fires.
  * While the second connection is up it shows which network is primary and which secondary,
  * in a silent notification and in the switch summary.
+ * A chosen secondary network pins the band request of the band it is seen on to its strongest
+ * BSSID; Wi-Fi accepts a BSSID in a multi-internet request only from a NETWORK_SETTINGS holder
+ * (MultiInternetWifiNetworkFactory.isWifiMultiInternetRequest) and then only picks that BSSID
+ * for the band (WifiConnectivityManager getSpecifiedBssids).
  */
 public class DualWifi extends Service {
 
     private static final String TAG = "DualWifi";
     public static final String KEY = "dual_wifi";
+    /** SSID of the network wanted as secondary, "" for automatic. */
+    public static final String KEY_SECONDARY = "dual_wifi_secondary";
     private static final int[] BANDS = { ScanResult.WIFI_BAND_24_GHZ, ScanResult.WIFI_BAND_5_GHZ };
 
     private static final String CHANNEL = "dual_wifi";
@@ -58,6 +67,12 @@ public class DualWifi extends Service {
     private static volatile String sStatus;
 
     private final List<ConnectivityManager.NetworkCallback> mCallbacks = new ArrayList<>();
+    // Band requests and the pin state below are only touched on the main thread.
+    private final List<ConnectivityManager.NetworkCallback> mBandCallbacks = new ArrayList<>();
+    // The chosen secondary was found in a scan and its band request carries the BSSID.
+    private boolean mPinned;
+    // Primary network the lookup last ran for, so it is retried once per new primary.
+    private Network mPinPrimary;
     // Only touched on the main thread: every callback below is registered with mHandler.
     private final Map<Network, WifiInfo> mWifi = new HashMap<>();
     private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -104,26 +119,7 @@ public class DualWifi extends Service {
     public void onCreate() {
         super.onCreate();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
-        for (int band : BANDS) {
-            NetworkRequest request = new NetworkRequest.Builder()
-                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    .setNetworkSpecifier(new WifiNetworkSpecifier.Builder().setBand(band).build())
-                    .build();
-            ConnectivityManager.NetworkCallback cb = new ConnectivityManager.NetworkCallback() {
-                @Override
-                public void onAvailable(Network network) {
-                    Log.i(TAG, "band " + band + " connected: " + network);
-                }
-
-                @Override
-                public void onLost(Network network) {
-                    Log.i(TAG, "band " + band + " lost: " + network);
-                }
-            };
-            cm.requestNetwork(request, cb);
-            mCallbacks.add(cb);
-        }
+        requestBands();
 
         getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(
                 CHANNEL, getString(R.string.dual_wifi_title), NotificationManager.IMPORTANCE_LOW));
@@ -170,27 +166,122 @@ public class DualWifi extends Service {
         update();
     }
 
-    private static String label(WifiInfo info) {
-        String ssid = info.getSSID();
-        if (ssid.length() > 1 && ssid.startsWith("\"") && ssid.endsWith("\"")) {
-            ssid = ssid.substring(1, ssid.length() - 1);
+    /**
+     * One band request per band; the band the chosen secondary is seen on carries its BSSID.
+     * Made again (old requests dropped first) when a new primary connects while the chosen
+     * network was not found yet, e.g. at boot before the first scan.
+     */
+    private void requestBands() {
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        for (ConnectivityManager.NetworkCallback cb : mBandCallbacks) {
+            cm.unregisterNetworkCallback(cb);
         }
+        mBandCallbacks.clear();
+        ScanResult pin = strongest(PreferenceManager.getDefaultSharedPreferences(this)
+                .getString(KEY_SECONDARY, ""));
+        mPinned = pin != null;
+        for (int band : BANDS) {
+            WifiNetworkSpecifier.Builder spec = new WifiNetworkSpecifier.Builder().setBand(band);
+            if (pin != null && band(pin.frequency) == band) {
+                spec.setBssid(MacAddress.fromString(pin.BSSID));
+                Log.i(TAG, "band " + band + " pinned to " + pin.SSID);
+            }
+            NetworkRequest request = new NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .setNetworkSpecifier(spec.build())
+                    .build();
+            ConnectivityManager.NetworkCallback cb = new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network network) {
+                    Log.i(TAG, "band " + band + " connected: " + network);
+                }
+
+                @Override
+                public void onLost(Network network) {
+                    Log.i(TAG, "band " + band + " lost: " + network);
+                }
+            };
+            cm.requestNetwork(request, cb);
+            mBandCallbacks.add(cb);
+        }
+    }
+
+    private static String unquote(String ssid) {
+        if (ssid != null && ssid.length() > 1 && ssid.startsWith("\"") && ssid.endsWith("\"")) {
+            return ssid.substring(1, ssid.length() - 1);
+        }
+        return ssid;
+    }
+
+    private static int band(int mhz) {
+        return mhz < 3000 ? ScanResult.WIFI_BAND_24_GHZ
+                : mhz < 5925 ? ScanResult.WIFI_BAND_5_GHZ : ScanResult.WIFI_BAND_6_GHZ;
+    }
+
+    /** Saved network SSIDs for the secondary picker, sorted. */
+    public static String[] savedSsids(Context context) {
+        TreeSet<String> ssids = new TreeSet<>();
+        List<WifiConfiguration> saved =
+                context.getSystemService(WifiManager.class).getConfiguredNetworks();
+        if (saved != null) {
+            for (WifiConfiguration c : saved) {
+                if (c.SSID != null) {
+                    ssids.add(unquote(c.SSID));
+                }
+            }
+        }
+        return ssids.toArray(new String[0]);
+    }
+
+    /**
+     * Strongest BSSID of {@code ssid} on a Dual Wi-Fi band in the last scan, or null.
+     * ponytail: the BSSID is fixed once found; an AP whose BSSID changes needs the choice
+     * saved again (or a reboot).
+     */
+    private ScanResult strongest(String ssid) {
+        if (ssid.isEmpty()) {
+            return null;
+        }
+        ScanResult best = null;
+        for (ScanResult r : getSystemService(WifiManager.class).getScanResults()) {
+            int b = band(r.frequency);
+            if (ssid.equals(r.SSID) && (b == BANDS[0] || b == BANDS[1])
+                    && (best == null || r.level > best.level)) {
+                best = r;
+            }
+        }
+        if (best == null) {
+            Log.w(TAG, ssid + " not in scan results, automatic secondary");
+        }
+        return best;
+    }
+
+    private static String label(WifiInfo info) {
         int mhz = info.getFrequency();
         String band = mhz < 3000 ? "2.4 GHz" : mhz < 5925 ? "5 GHz" : "6 GHz";
-        return ssid + " (" + band + ")";
+        return unquote(info.getSSID()) + " (" + band + ")";
     }
 
     private void update() {
+        Network primary = null;
         Network secondary = null;
         WifiInfo primaryInfo = null;
         WifiInfo secondaryInfo = null;
         for (Map.Entry<Network, WifiInfo> e : mWifi.entrySet()) {
             if (e.getValue().isPrimary()) {
+                primary = e.getKey();
                 primaryInfo = e.getValue();
             } else {
                 secondary = e.getKey();
                 secondaryInfo = e.getValue();
             }
+        }
+        if (!mPinned && primary != null && !primary.equals(mPinPrimary)
+                && !PreferenceManager.getDefaultSharedPreferences(this)
+                        .getString(KEY_SECONDARY, "").isEmpty()) {
+            mPinPrimary = primary;
+            requestBands();
         }
         String none = getString(R.string.dual_wifi_none);
         String status = getString(R.string.dual_wifi_status,
@@ -229,6 +320,10 @@ public class DualWifi extends Service {
             cm.unregisterNetworkCallback(cb);
         }
         mCallbacks.clear();
+        for (ConnectivityManager.NetworkCallback cb : mBandCallbacks) {
+            cm.unregisterNetworkCallback(cb);
+        }
+        mBandCallbacks.clear();
         mWifi.clear();
         sStatus = null;
         getSystemService(NotificationManager.class).cancel(NOTIFICATION_ID);

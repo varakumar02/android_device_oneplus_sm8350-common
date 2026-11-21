@@ -137,13 +137,17 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
             return true;
         });
         Preference dualWifi = findPreference(DualWifi.KEY);
+        Preference secondary = findPreference(DualWifi.KEY_SECONDARY);
         if (!DualWifi.isSupported(app)) {
             dualWifi.getParent().removePreference(dualWifi);
+            secondary.getParent().removePreference(secondary);
         } else {
-            dualWifi.setOnPreferenceChangeListener((pref, value) -> {
+            Preference.OnPreferenceChangeListener dualListener = (pref, value) -> {
                 main.post(() -> DualWifi.apply(app));
                 return true;
-            });
+            };
+            dualWifi.setOnPreferenceChangeListener(dualListener);
+            secondary.setOnPreferenceChangeListener(dualListener);
         }
 
         Preference.OnPreferenceChangeListener videoListener = (pref, value) -> {
@@ -219,6 +223,22 @@ public class DeviceSettings extends SettingsBasePreferenceFragment
         if (dualWifi != null) {
             String status = DualWifi.status();
             dualWifi.setSummary(status != null ? status : getString(R.string.dual_wifi_summary));
+        }
+        ListPreference secondary = findPreference(DualWifi.KEY_SECONDARY);
+        if (secondary != null) {
+            // Saved networks can change while we are away.
+            String[] ssids = DualWifi.savedSsids(getContext());
+            String[] entries = new String[ssids.length + 1];
+            String[] values = new String[ssids.length + 1];
+            entries[0] = getString(R.string.dual_wifi_secondary_auto);
+            values[0] = "";
+            System.arraycopy(ssids, 0, entries, 1, ssids.length);
+            System.arraycopy(ssids, 0, values, 1, ssids.length);
+            secondary.setEntries(entries);
+            secondary.setEntryValues(values);
+            if (secondary.findIndexOfValue(secondary.getValue()) < 0) {
+                secondary.setValue("");
+            }
         }
     }
 
