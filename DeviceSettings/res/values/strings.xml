@@ -271,7 +271,12 @@
     <string name="dual_wifi_status">Primary: %1$s · Secondary: %2$s</string>
     <string name="dual_wifi_none">none</string>
     <string name="dual_wifi_apps_on">Apps now on: %1$s (secondary)</string>
-    <string name="dual_wifi_notif_title">Secondary Wi-Fi active</string>
+    <string name="dual_wifi_toast_primary">Primary now: %1$s</string>
+    <string name="dual_wifi_toast_primary_off">Primary disconnected: %1$s</string>
+    <string name="dual_wifi_toast_secondary_on">Secondary connected: %1$s</string>
+    <string name="dual_wifi_toast_secondary_off">Secondary disconnected: %1$s</string>
+    <string name="dual_wifi_toast_apps_secondary">Apps switched to secondary: %1$s</string>
+    <string name="dual_wifi_toast_apps_primary">Apps back on primary: %1$s</string>
     <string name="dual_wifi_secondary_title">Secondary network</string>
     <string name="dual_wifi_secondary_auto">Automatic (any saved network on the other band)</string>
     <string name="mobile_data_apps_title">Apps on mobile data</string>

@@ -5,10 +5,7 @@
 
 package org.lineageos.device.DeviceSettings.network;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -25,11 +22,12 @@ import android.net.wifi.WifiNetworkSpecifier;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.Log;
+import android.widget.Toast;
 
 import androidx.preference.PreferenceManager;
 
-import org.lineageos.device.DeviceSettings.DeviceSettingsActivity;
 import org.lineageos.device.DeviceSettings.R;
 
 import java.util.ArrayList;
@@ -46,8 +44,10 @@ import java.util.TreeSet;
  * active; this sticky service holds one per band (the primary's band counts as connected, so
  * the other band gets the second connection). Callback requests, not PendingIntent ones:
  * ConnectivityService drops a PendingIntent request 5 s after its intent fires.
- * While the second connection is up it shows which network is primary and which secondary,
- * in a silent notification and in the switch summary.
+ * The switch summary shows which network is primary and which secondary, and a toast (like
+ * the MEMC one) pops up when either connects, drops or changes, or apps move between them.
+ * One toast per change: events are collected for ANNOUNCE_DELAY_MS, since a single failover
+ * is several network callbacks within a second.
  * A chosen secondary network pins the band request of the band it is seen on to its strongest
  * BSSID; Wi-Fi accepts a BSSID in a multi-internet request only from a NETWORK_SETTINGS holder
  * (MultiInternetWifiNetworkFactory.isWifiMultiInternetRequest) and then only picks that BSSID
@@ -61,8 +61,9 @@ public class DualWifi extends Service {
     public static final String KEY_SECONDARY = "dual_wifi_secondary";
     private static final int[] BANDS = { ScanResult.WIFI_BAND_24_GHZ, ScanResult.WIFI_BAND_5_GHZ };
 
-    private static final String CHANNEL = "dual_wifi";
-    private static final int NOTIFICATION_ID = 1;
+    // Channel of the ongoing notification older builds posted; deleted on start.
+    private static final String OLD_CHANNEL = "dual_wifi";
+    private static final long ANNOUNCE_DELAY_MS = 1500;
 
     private static volatile String sStatus;
 
@@ -77,6 +78,10 @@ public class DualWifi extends Service {
     private final Map<Network, WifiInfo> mWifi = new HashMap<>();
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private Network mDefault;
+    // Current state (labels, null = none) and the state the last toast described.
+    private String mPrimary, mSecondary, mShownPrimary, mShownSecondary;
+    private boolean mOnSecondary, mShownOnSecondary, mBaseline;
+    private final Runnable mAnnounce = this::announce;
 
     /** "Primary: X (5 GHz) · Secondary: Y (2.4 GHz)", or null while the mode is off. */
     public static String status() {
@@ -121,8 +126,7 @@ public class DualWifi extends Service {
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         requestBands();
 
-        getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(
-                CHANNEL, getString(R.string.dual_wifi_title), NotificationManager.IMPORTANCE_LOW));
+        getSystemService(NotificationManager.class).deleteNotificationChannel(OLD_CHANNEL);
         // Every Wi-Fi network, the secondary included (it may not be NOT_RESTRICTED);
         // location info so WifiInfo keeps the SSID.
         ConnectivityManager.NetworkCallback wifi = new ConnectivityManager.NetworkCallback(
@@ -295,22 +299,53 @@ public class DualWifi extends Service {
         }
         sStatus = status;
 
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        if (secondaryInfo == null) {
-            nm.cancel(NOTIFICATION_ID);
-            return;
+        mPrimary = primaryInfo != null ? label(primaryInfo) : null;
+        mSecondary = secondaryInfo != null ? label(secondaryInfo) : null;
+        mOnSecondary = secondary != null && secondary.equals(mDefault);
+        mHandler.removeCallbacks(mAnnounce);
+        mHandler.postDelayed(mAnnounce, ANNOUNCE_DELAY_MS);
+    }
+
+    /** Toasts what changed since the last toast; the first run only records the state. */
+    private void announce() {
+        StringBuilder msg = new StringBuilder();
+        if (mBaseline) {
+            if (!TextUtils.equals(mPrimary, mShownPrimary)) {
+                if (mPrimary != null) {
+                    line(msg, getString(R.string.dual_wifi_toast_primary, mPrimary));
+                } else {
+                    line(msg, getString(R.string.dual_wifi_toast_primary_off, mShownPrimary));
+                }
+            }
+            if (!TextUtils.equals(mSecondary, mShownSecondary)) {
+                if (mSecondary != null) {
+                    line(msg, getString(R.string.dual_wifi_toast_secondary_on, mSecondary));
+                } else {
+                    line(msg, getString(R.string.dual_wifi_toast_secondary_off, mShownSecondary));
+                }
+            }
+            if (mOnSecondary && !mShownOnSecondary) {
+                line(msg, getString(R.string.dual_wifi_toast_apps_secondary, mSecondary));
+            } else if (!mOnSecondary && mShownOnSecondary && mPrimary != null) {
+                line(msg, getString(R.string.dual_wifi_toast_apps_primary, mPrimary));
+            }
         }
-        PendingIntent open = PendingIntent.getActivity(this, 0,
-                new Intent(this, DeviceSettingsActivity.class), PendingIntent.FLAG_IMMUTABLE);
-        nm.notify(NOTIFICATION_ID, new Notification.Builder(this, CHANNEL)
-                .setSmallIcon(R.drawable.ic_dual_wifi)
-                .setContentTitle(getString(R.string.dual_wifi_notif_title))
-                .setContentText(status)
-                .setStyle(new Notification.BigTextStyle().bigText(status))
-                .setContentIntent(open)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .build());
+        mBaseline = true;
+        mShownPrimary = mPrimary;
+        mShownSecondary = mSecondary;
+        mShownOnSecondary = mOnSecondary;
+        if (msg.length() > 0) {
+            Log.i(TAG, "toast: " + msg.toString().replace('\n', ' '));
+            Toast.makeText(this, getString(R.string.dual_wifi_title) + "\n" + msg,
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private static void line(StringBuilder sb, String s) {
+        if (sb.length() > 0) {
+            sb.append('\n');
+        }
+        sb.append(s);
     }
 
     @Override
@@ -326,7 +361,7 @@ public class DualWifi extends Service {
         mBandCallbacks.clear();
         mWifi.clear();
         sStatus = null;
-        getSystemService(NotificationManager.class).cancel(NOTIFICATION_ID);
+        mHandler.removeCallbacks(mAnnounce);
         super.onDestroy();
     }
 
