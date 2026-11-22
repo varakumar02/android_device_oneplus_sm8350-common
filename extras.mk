@@ -10,9 +10,6 @@ $(call inherit-product-if-exists, vendor/oplus/camera/opluscamera.mk)
 # Dolby
 $(call inherit-product, vendor/sony/dolby/sonydolby.mk)
 
-# GhostWire (independent pentest app, pinned at packages/apps/GhostWire)
-$(call inherit-product-if-exists, packages/apps/GhostWire/ghostwire.mk)
-
 # Datura firewall (pinned at packages/apps/Datura-Firewall)
 $(call inherit-product-if-exists, packages/apps/Datura-Firewall/datura.mk)
 
