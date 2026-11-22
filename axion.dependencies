@@ -2,7 +2,7 @@
   {
     "repository": "varakumar02/Levion_kernel_OP9",
     "target_path": "kernel/oneplus/sm8350",
-    "branch": "aox-ksun"
+    "branch": "aox-nh"
   },
   {
     "repository": "varakumar02/android_hardware_oplus",
