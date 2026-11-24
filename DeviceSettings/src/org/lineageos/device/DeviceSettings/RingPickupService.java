@@ -6,6 +6,7 @@
 package org.lineageos.device.DeviceSettings;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -16,7 +17,9 @@ import android.hardware.SensorManager;
 import android.hardware.TriggerEvent;
 import android.hardware.TriggerEventListener;
 import android.media.AudioManager;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 
 import androidx.preference.PreferenceManager;
 
@@ -96,8 +99,32 @@ public class RingPickupService extends Service {
         return prefs(context).getBoolean(KEY_ENABLED, true);
     }
 
+    /**
+     * Puts back the saved ring volume once the call audio is gone. Ring volume is kept per
+     * output device and a call moves the ring stream off the speaker, so a restore during the
+     * call would land on the call device and leave the speaker at the reduced volume.
+     * Waits up to 5 s for the normal audio mode, then restores anyway; finishes `done`.
+     */
+    public static void restoreAfterCall(Context context, BroadcastReceiver.PendingResult done) {
+        Handler handler = new Handler(Looper.getMainLooper());
+        AudioManager audio = context.getSystemService(AudioManager.class);
+        handler.post(new Runnable() {
+            private int mTries;
+
+            @Override
+            public void run() {
+                if (audio.getMode() != AudioManager.MODE_NORMAL && mTries++ < 20) {
+                    handler.postDelayed(this, 250);
+                    return;
+                }
+                restoreVolume(context);
+                if (done != null) done.finish();
+            }
+        });
+    }
+
     /** Puts back the ring volume saved when the phone was picked up, if any. */
-    public static void restoreVolume(Context context) {
+    private static void restoreVolume(Context context) {
         SharedPreferences prefs = prefs(context);
         int volume = prefs.getInt(KEY_SAVED_VOLUME, -1);
         if (volume < 0) return;
@@ -141,7 +168,6 @@ public class RingPickupService extends Service {
     public void onDestroy() {
         if (mSensor != null) mSensorManager.cancelTriggerSensor(mListener, mSensor);
         if (mAccel != null) mSensorManager.unregisterListener(mAccelListener);
-        restoreVolume(this);
     }
 
     @Override

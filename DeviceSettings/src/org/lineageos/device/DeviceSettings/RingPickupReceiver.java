@@ -24,8 +24,12 @@ public class RingPickupReceiver extends BroadcastReceiver {
             }
         } else {
             context.stopService(service);
-            // In case the service's process died while the phone rang.
-            RingPickupService.restoreVolume(context);
+            // Restore only once the call is over (also covers a service process that died
+            // while the phone rang); during the call it would land on the call device.
+            if (TelephonyManager.EXTRA_STATE_IDLE.equals(
+                    intent.getStringExtra(TelephonyManager.EXTRA_STATE))) {
+                RingPickupService.restoreAfterCall(context, goAsync());
+            }
         }
     }
 }
